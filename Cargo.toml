@@ -12,7 +12,9 @@ members = [
     "nafs-logging",
     "nafs-cli",
     "nafs-server",
-    "nafs-orchestrator", "nafs-integration",
+    "nafs-orchestrator", 
+    "nafs-integration",
+    "nafs-python",
 ]
 
 [workspace.dependencies]

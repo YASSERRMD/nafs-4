@@ -1,0 +1,15 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "nafs"
+version = "0.1.0"
+description = "Python bindings for NAFS-4 Neuromorphic AI Framework"
+authors = [{name = "NAFS Team", email = "dev@nafs.dev"}]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+requires-python = ">=3.8"
