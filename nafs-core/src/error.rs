@@ -59,6 +59,22 @@ pub enum NafsError {
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
 
+    /// Resource not found
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    /// Resource already exists
+    #[error("Already exists: {0}")]
+    AlreadyExists(String),
+
+    /// Operation not supported
+    #[error("Not supported: {0}")]
+    NotSupported(String),
+
+    /// General serialization error
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
     /// Unknown/unexpected errors
     #[error("Unknown error: {0}")]
     Unknown(String),
