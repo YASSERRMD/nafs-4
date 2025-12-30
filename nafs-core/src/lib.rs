@@ -40,6 +40,8 @@ pub use types::{
     CachedReasoning, ChainOfThought, EnforcementStrategy, ReasoningStep, SupervisionFeedback,
     SymbolicConstraint, System2Config, ToTNode, ToTNodeStatus, VerificationResult,
     VerificationSeverity,
+    // System 3 meta-cognition types
+    EpisodicEvent, EnvironmentEvent, KnowledgeEntity, Perception, System3Config, UserModel,
 };
 
 /// NAFS-4 version

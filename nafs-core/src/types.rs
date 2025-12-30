@@ -933,6 +933,277 @@ impl System2Config {
 }
 
 /// ============================================================================
+/// META-COGNITION LAYER TYPES (System 3 - Wai)
+/// ============================================================================
+
+/// An episode in episodic memory
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EpisodicEvent {
+    pub id: String,
+    pub timestamp: DateTime<Utc>,
+    pub goal: Option<Goal>,
+    pub action: Option<Action>,
+    pub observation: String,          // What happened
+    pub outcome: Outcome,
+    pub reward: Option<Reward>,
+    pub reflection: Option<String>,   // Agent's interpretation
+    pub emotional_valence: f32,       // -1.0 (bad) to 1.0 (good)
+}
+
+impl EpisodicEvent {
+    /// Create a new episodic event
+    pub fn new(observation: impl Into<String>, outcome: Outcome) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            timestamp: Utc::now(),
+            goal: None,
+            action: None,
+            observation: observation.into(),
+            outcome,
+            reward: None,
+            reflection: None,
+            emotional_valence: 0.0,
+        }
+    }
+
+    /// Set associated goal
+    pub fn with_goal(mut self, goal: Goal) -> Self {
+        self.goal = Some(goal);
+        self
+    }
+
+    /// Set associated action
+    pub fn with_action(mut self, action: Action) -> Self {
+        self.action = Some(action);
+        self
+    }
+
+    /// Set emotional valence
+    pub fn with_valence(mut self, valence: f32) -> Self {
+        self.emotional_valence = valence.clamp(-1.0, 1.0);
+        self
+    }
+
+    /// Add reflection
+    pub fn with_reflection(mut self, reflection: impl Into<String>) -> Self {
+        self.reflection = Some(reflection.into());
+        self
+    }
+
+    /// Check if this was a positive experience
+    pub fn is_positive(&self) -> bool {
+        self.emotional_valence > 0.0 || self.outcome.is_success()
+    }
+}
+
+/// An entity in the knowledge graph
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KnowledgeEntity {
+    pub id: String,
+    pub entity_type: String,           // "Person", "Object", "Concept", "Place"
+    pub name: String,
+    pub attributes: HashMap<String, String>,
+    pub relationships: Vec<(String, String)>, // (relation_type, target_entity_id)
+    pub confidence: f32,
+}
+
+impl KnowledgeEntity {
+    /// Create a new knowledge entity
+    pub fn new(entity_type: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            entity_type: entity_type.into(),
+            name: name.into(),
+            attributes: HashMap::new(),
+            relationships: Vec::new(),
+            confidence: 1.0,
+        }
+    }
+
+    /// Add attribute
+    pub fn with_attribute(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.attributes.insert(key.into(), value.into());
+        self
+    }
+
+    /// Add relationship
+    pub fn with_relationship(mut self, relation: impl Into<String>, target_id: impl Into<String>) -> Self {
+        self.relationships.push((relation.into(), target_id.into()));
+        self
+    }
+
+    /// Set confidence
+    pub fn with_confidence(mut self, confidence: f32) -> Self {
+        self.confidence = confidence.clamp(0.0, 1.0);
+        self
+    }
+}
+
+/// User model: what the agent believes about the user
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UserModel {
+    pub user_id: String,
+    pub name: Option<String>,
+    pub preferences: HashMap<String, String>,
+    pub goals: Vec<Goal>,
+    pub communication_style: String,
+    pub expertise_level: HashMap<String, f32>, // Topic → proficiency
+    pub emotional_state: Option<String>,
+}
+
+impl UserModel {
+    /// Create a new user model
+    pub fn new(user_id: impl Into<String>) -> Self {
+        Self {
+            user_id: user_id.into(),
+            name: None,
+            preferences: HashMap::new(),
+            goals: Vec::new(),
+            communication_style: "neutral".to_string(),
+            expertise_level: HashMap::new(),
+            emotional_state: None,
+        }
+    }
+
+    /// Set user name
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Add preference
+    pub fn with_preference(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.preferences.insert(key.into(), value.into());
+        self
+    }
+
+    /// Set expertise level for a topic
+    pub fn with_expertise(mut self, topic: impl Into<String>, level: f32) -> Self {
+        self.expertise_level.insert(topic.into(), level.clamp(0.0, 1.0));
+        self
+    }
+}
+
+/// System 3 configuration
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct System3Config {
+    pub enable_memory: bool,
+    pub max_episodic_events: usize,
+    pub memory_retention_days: u32,
+    pub enable_rag: bool,
+    pub vector_embedding_dim: usize,
+    pub intrinsic_motivation_weights: (f32, f32, f32), // (curiosity, mastery, autonomy)
+    pub extrinsic_reward_weight: f32,
+    pub intrinsic_reward_weight: f32,
+}
+
+impl Default for System3Config {
+    fn default() -> Self {
+        Self {
+            enable_memory: true,
+            max_episodic_events: 10000,
+            memory_retention_days: 90,
+            enable_rag: true,
+            vector_embedding_dim: 384,
+            intrinsic_motivation_weights: (0.3, 0.4, 0.3), // curiosity, mastery, autonomy
+            extrinsic_reward_weight: 0.6,
+            intrinsic_reward_weight: 0.4,
+        }
+    }
+}
+
+impl System3Config {
+    /// Set memory capacity
+    pub fn with_max_events(mut self, max: usize) -> Self {
+        self.max_episodic_events = max;
+        self
+    }
+
+    /// Set motivation weights
+    pub fn with_motivation_weights(mut self, curiosity: f32, mastery: f32, autonomy: f32) -> Self {
+        self.intrinsic_motivation_weights = (curiosity, mastery, autonomy);
+        self
+    }
+
+    /// Set reward weights
+    pub fn with_reward_weights(mut self, extrinsic: f32, intrinsic: f32) -> Self {
+        self.extrinsic_reward_weight = extrinsic;
+        self.intrinsic_reward_weight = intrinsic;
+        self
+    }
+
+    /// Disable memory
+    pub fn without_memory(mut self) -> Self {
+        self.enable_memory = false;
+        self
+    }
+
+    /// Disable RAG
+    pub fn without_rag(mut self) -> Self {
+        self.enable_rag = false;
+        self
+    }
+}
+
+/// Raw event from environment
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EnvironmentEvent {
+    pub id: String,
+    pub timestamp: DateTime<Utc>,
+    pub event_type: String,
+    pub data: serde_json::Value,
+}
+
+impl EnvironmentEvent {
+    /// Create a new environment event
+    pub fn new(event_type: impl Into<String>, data: serde_json::Value) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            timestamp: Utc::now(),
+            event_type: event_type.into(),
+            data,
+        }
+    }
+}
+
+/// Perception of a state
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Perception {
+    pub id: String,
+    pub timestamp: DateTime<Utc>,
+    pub sensory_modality: String,      // "visual", "textual", "audio", "api"
+    pub raw_data: Vec<u8>,
+    pub interpreted: String,           // Meaning extracted
+    pub confidence: f32,
+}
+
+impl Perception {
+    /// Create a new perception
+    pub fn new(modality: impl Into<String>, interpreted: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            timestamp: Utc::now(),
+            sensory_modality: modality.into(),
+            raw_data: Vec::new(),
+            interpreted: interpreted.into(),
+            confidence: 1.0,
+        }
+    }
+
+    /// Set raw data
+    pub fn with_raw_data(mut self, data: Vec<u8>) -> Self {
+        self.raw_data = data;
+        self
+    }
+
+    /// Set confidence
+    pub fn with_confidence(mut self, confidence: f32) -> Self {
+        self.confidence = confidence.clamp(0.0, 1.0);
+        self
+    }
+}
+
+/// ============================================================================
 /// UNIT TESTS
 /// ============================================================================
 
