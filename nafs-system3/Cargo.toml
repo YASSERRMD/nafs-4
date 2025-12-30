@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["NAFS Team <dev@nafs.dev>"]
 license = "Apache-2.0"
-description = "System 3: Meta-Cognition (Self-Awareness)"
+description = "System 3 (Wai): Meta-Cognition & Awareness Layer"
 
 [dependencies]
 nafs-core = { path = "../nafs-core" }
@@ -14,6 +14,7 @@ serde_json = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+uuid = { workspace = true }
 chrono = { workspace = true }
 
 [dev-dependencies]
