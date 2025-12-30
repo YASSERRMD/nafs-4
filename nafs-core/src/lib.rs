@@ -46,6 +46,9 @@ pub use types::{
     AgentRole, ApprovalStatus, CapabilityGap, ConstraintSeverity, EvolutionEntry, GradientBatch,
     KernelConstraint, KernelMode, PerformanceMetrics, RecordedFailure, System4Config,
     TextualGradient,
+    // Integration types
+    AgentInstance, AgentRequest, AgentResponse, CliCommand, CliResponse, HealthStatus,
+    OrchestratorConfig, SystemStats,
 };
 
 /// NAFS-4 version

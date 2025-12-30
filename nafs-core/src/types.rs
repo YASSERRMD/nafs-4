@@ -346,6 +346,19 @@ impl SelfModel {
     }
 }
 
+impl Default for SelfModel {
+    fn default() -> Self {
+        Self {
+            agent_id: "default_agent".to_string(),
+            identity: "I am a generic NAFS-4 agent.".to_string(),
+            capabilities: HashMap::new(),
+            weaknesses: Vec::new(),
+            terminal_values: Vec::new(),
+            personality: HashMap::new(),
+        }
+    }
+}
+
 
 
 
@@ -1315,6 +1328,123 @@ impl PerformanceMetrics {
             + self.safety_score * 0.5)
             / 1.0
     }
+}
+
+/// ============================================================================
+/// INTEGRATION LAYER TYPES (Orchestration & API)
+/// ============================================================================
+
+/// An agent instance with all systems active
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AgentInstance {
+    pub id: String,
+    pub name: String,
+    pub role: AgentRole,
+    pub self_model: SelfModel,
+    pub created_at: DateTime<Utc>,
+    pub last_activity: DateTime<Utc>,
+    pub is_active: bool,
+    pub metadata: HashMap<String, String>,
+}
+
+/// Request to execute an agent action
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AgentRequest {
+    pub id: String,
+    pub agent_id: String,
+    pub query: String,
+    pub context: HashMap<String, String>,
+    pub priority: u8,
+    pub timeout_ms: u32,
+    pub metadata: HashMap<String, String>,
+}
+
+/// Response from agent execution
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AgentResponse {
+    pub request_id: String,
+    pub agent_id: String,
+    pub result: String,
+    pub success: bool,
+    pub error: Option<String>,
+    pub execution_time_ms: u32,
+    pub metadata: HashMap<String, String>,
+}
+
+/// Orchestrator configuration
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OrchestratorConfig {
+    pub max_agents: usize,
+    pub persistence_backend: String,  // "file", "sqlite", "postgres"
+    pub persistence_path: String,
+    pub enable_distributed: bool,
+    pub coordination_timeout_ms: u32,
+    pub logging_level: String,
+}
+
+impl Default for OrchestratorConfig {
+    fn default() -> Self {
+        Self {
+            max_agents: 100,
+            persistence_backend: "file".to_string(),
+            persistence_path: "./nafs_data".to_string(),
+            enable_distributed: false,
+            coordination_timeout_ms: 5000,
+            logging_level: "info".to_string(),
+        }
+    }
+}
+
+/// Health status of the system
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HealthStatus {
+    pub is_healthy: bool,
+    pub active_agents: usize,
+    pub uptime_seconds: u64,
+    pub memory_usage_mb: f32,
+    pub last_error: Option<String>,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// System statistics
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SystemStats {
+    pub total_requests: u64,
+    pub successful_requests: u64,
+    pub failed_requests: u64,
+    pub average_response_time_ms: f32,
+    pub total_memories_stored: u64,
+    pub total_evolutions: u64,
+    pub agents_by_status: HashMap<String, usize>,
+}
+
+/// CLI command enum
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum CliCommand {
+    Agent {
+        action: String,  // "create", "list", "query", "delete"
+        args: HashMap<String, String>,
+    },
+    Memory {
+        action: String,  // "search", "recall", "clear", "export"
+        query: String,
+    },
+    Evolution {
+        action: String,  // "evolve", "history", "rollback", "review"
+        target: String,
+    },
+    System {
+        action: String,  // "health", "stats", "config", "restart"
+    },
+}
+
+/// CLI response
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CliResponse {
+    pub success: bool,
+    pub message: String,
+    pub data: Option<serde_json::Value>,
+    pub error: Option<String>,
 }
 
 /// ============================================================================

@@ -1,0 +1,19 @@
+[package]
+name = "nafs-orchestrator"
+version = "0.1.0"
+edition = "2021"
+authors = ["NAFS Team <dev@nafs.dev>"]
+license = "Apache-2.0"
+
+[dependencies]
+nafs-core = { path = "../nafs-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
