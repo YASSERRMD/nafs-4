@@ -578,6 +578,361 @@ impl Agent {
 }
 
 /// ============================================================================
+/// REASONING LAYER TYPES (System 2 - Aql)
+/// ============================================================================
+
+/// A single reasoning step in the chain-of-thought
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ReasoningStep {
+    pub id: String,
+    pub thought: String,                 // The thought/insight
+    pub justification: String,           // Why this thought matters
+    pub next_action: Option<Action>,     // Proposed action
+    pub confidence: f32,                 // Confidence in this step (0.0-1.0)
+    pub timestamp: DateTime<Utc>,
+}
+
+impl ReasoningStep {
+    /// Create a new reasoning step
+    pub fn new(thought: impl Into<String>, justification: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            thought: thought.into(),
+            justification: justification.into(),
+            next_action: None,
+            confidence: 0.5,
+            timestamp: Utc::now(),
+        }
+    }
+
+    /// Set confidence level
+    pub fn with_confidence(mut self, confidence: f32) -> Self {
+        self.confidence = confidence.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Set the proposed action
+    pub fn with_action(mut self, action: Action) -> Self {
+        self.next_action = Some(action);
+        self
+    }
+}
+
+/// A complete chain-of-thought sequence
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ChainOfThought {
+    pub id: String,
+    pub goal: Goal,
+    pub steps: Vec<ReasoningStep>,
+    pub final_plan: Vec<Action>,
+    pub reasoning_quality: f32,          // Overall quality score (0.0-1.0)
+    pub generated_at: DateTime<Utc>,
+}
+
+impl ChainOfThought {
+    /// Create a new chain-of-thought for a goal
+    pub fn new(goal: Goal) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            goal,
+            steps: Vec::new(),
+            final_plan: Vec::new(),
+            reasoning_quality: 0.0,
+            generated_at: Utc::now(),
+        }
+    }
+
+    /// Add a reasoning step
+    pub fn add_step(&mut self, step: ReasoningStep) {
+        self.steps.push(step);
+        // Update quality based on average confidence
+        if !self.steps.is_empty() {
+            self.reasoning_quality = self.steps.iter().map(|s| s.confidence).sum::<f32>()
+                / self.steps.len() as f32;
+        }
+    }
+
+    /// Set the final plan
+    pub fn with_plan(mut self, plan: Vec<Action>) -> Self {
+        self.final_plan = plan;
+        self
+    }
+}
+
+/// A node in the Tree-of-Thought search
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ToTNode {
+    pub id: String,
+    pub depth: usize,
+    pub parent_id: Option<String>,
+    pub children_ids: Vec<String>,
+    pub partial_plan: Vec<Action>,
+    pub value_estimate: f32,             // Estimated value (0.0-1.0)
+    pub status: ToTNodeStatus,
+}
+
+impl ToTNode {
+    /// Create a root node
+    pub fn root() -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            depth: 0,
+            parent_id: None,
+            children_ids: Vec::new(),
+            partial_plan: Vec::new(),
+            value_estimate: 1.0,
+            status: ToTNodeStatus::Pending,
+        }
+    }
+
+    /// Create a child node
+    pub fn child(parent: &ToTNode) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            depth: parent.depth + 1,
+            parent_id: Some(parent.id.clone()),
+            children_ids: Vec::new(),
+            partial_plan: parent.partial_plan.clone(),
+            value_estimate: 0.5,
+            status: ToTNodeStatus::Pending,
+        }
+    }
+
+    /// Set value estimate
+    pub fn with_value(mut self, value: f32) -> Self {
+        self.value_estimate = value.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Update status
+    pub fn set_status(&mut self, status: ToTNodeStatus) {
+        self.status = status;
+    }
+
+    /// Check if this is a leaf node
+    pub fn is_leaf(&self) -> bool {
+        self.children_ids.is_empty()
+    }
+}
+
+/// Status of a ToT node
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ToTNodeStatus {
+    #[default]
+    Pending,                             // Not yet evaluated
+    Approved,                            // Passed verification
+    Pruned,                              // Failed verification
+    Selected,                            // Chosen as best path
+}
+
+/// A symbolic constraint the agent must respect
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SymbolicConstraint {
+    pub id: String,
+    pub rule: String,                    // Human-readable rule
+    pub condition: String,               // Logic to check
+    pub enforcement: EnforcementStrategy,
+}
+
+impl SymbolicConstraint {
+    /// Create a new hard constraint
+    pub fn hard(rule: impl Into<String>, condition: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            rule: rule.into(),
+            condition: condition.into(),
+            enforcement: EnforcementStrategy::Hard,
+        }
+    }
+
+    /// Create a soft constraint
+    pub fn soft(rule: impl Into<String>, condition: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            rule: rule.into(),
+            condition: condition.into(),
+            enforcement: EnforcementStrategy::Soft,
+        }
+    }
+}
+
+/// How strictly to enforce a constraint
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum EnforcementStrategy {
+    #[default]
+    Hard,       // Always block violations
+    Soft,       // Log warnings but allow
+    Advisory,   // Just inform user
+}
+
+/// Result of verification
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VerificationResult {
+    pub passes_logic: bool,
+    pub issues: Vec<String>,             // List of problems found
+    pub corrected_plan: Option<Vec<Action>>, // If correctable
+    pub severity: VerificationSeverity,
+}
+
+impl VerificationResult {
+    /// Create a passing result
+    pub fn pass() -> Self {
+        Self {
+            passes_logic: true,
+            issues: Vec::new(),
+            corrected_plan: None,
+            severity: VerificationSeverity::Info,
+        }
+    }
+
+    /// Create a failing result
+    pub fn fail(issues: Vec<String>) -> Self {
+        Self {
+            passes_logic: false,
+            issues,
+            corrected_plan: None,
+            severity: VerificationSeverity::Error,
+        }
+    }
+
+    /// Add a corrected plan
+    pub fn with_correction(mut self, plan: Vec<Action>) -> Self {
+        self.corrected_plan = Some(plan);
+        self
+    }
+}
+
+/// Severity of verification issues
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum VerificationSeverity {
+    Error,
+    Warning,
+    #[default]
+    Info,
+}
+
+/// Process supervision feedback
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SupervisionFeedback {
+    pub reasoning_coherence: f32,        // 0.0-1.0
+    pub action_relevance: f32,           // Are actions relevant to goal?
+    pub plan_completeness: f32,          // Does plan fully address goal?
+    pub issues: Vec<String>,
+    pub suggestions: Vec<String>,
+}
+
+impl SupervisionFeedback {
+    /// Create new supervision feedback
+    pub fn new(coherence: f32, relevance: f32, completeness: f32) -> Self {
+        Self {
+            reasoning_coherence: coherence.clamp(0.0, 1.0),
+            action_relevance: relevance.clamp(0.0, 1.0),
+            plan_completeness: completeness.clamp(0.0, 1.0),
+            issues: Vec::new(),
+            suggestions: Vec::new(),
+        }
+    }
+
+    /// Add an issue
+    pub fn add_issue(&mut self, issue: impl Into<String>) {
+        self.issues.push(issue.into());
+    }
+
+    /// Add a suggestion
+    pub fn add_suggestion(&mut self, suggestion: impl Into<String>) {
+        self.suggestions.push(suggestion.into());
+    }
+
+    /// Get overall quality score
+    pub fn overall_score(&self) -> f32 {
+        (self.reasoning_coherence + self.action_relevance + self.plan_completeness) / 3.0
+    }
+}
+
+/// Cached reasoning result
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CachedReasoning {
+    pub id: String,
+    pub goal_hash: String,               // Hash of goal for matching
+    pub cot: ChainOfThought,
+    pub hits: u32,                       // Times this cache was used
+    pub created_at: DateTime<Utc>,
+    pub last_used: DateTime<Utc>,
+}
+
+impl CachedReasoning {
+    /// Create a new cached reasoning entry
+    pub fn new(goal_hash: impl Into<String>, cot: ChainOfThought) -> Self {
+        let now = Utc::now();
+        Self {
+            id: Uuid::new_v4().to_string(),
+            goal_hash: goal_hash.into(),
+            cot,
+            hits: 0,
+            created_at: now,
+            last_used: now,
+        }
+    }
+
+    /// Record a cache hit
+    pub fn record_hit(&mut self) {
+        self.hits += 1;
+        self.last_used = Utc::now();
+    }
+}
+
+/// System 2 configuration
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct System2Config {
+    pub max_reasoning_steps: usize,      // Max chain-of-thought steps
+    pub max_tot_depth: usize,            // Max tree depth for search
+    pub max_tot_width: usize,            // Max branches at each node
+    pub verification_strictness: f32,    // 0.0 (lenient) to 1.0 (strict)
+    pub cache_enabled: bool,
+    pub cache_max_size: usize,
+}
+
+impl Default for System2Config {
+    fn default() -> Self {
+        Self {
+            max_reasoning_steps: 20,
+            max_tot_depth: 5,
+            max_tot_width: 3,
+            verification_strictness: 0.8,
+            cache_enabled: true,
+            cache_max_size: 1000,
+        }
+    }
+}
+
+impl System2Config {
+    /// Create a new config with custom max steps
+    pub fn with_max_steps(mut self, steps: usize) -> Self {
+        self.max_reasoning_steps = steps;
+        self
+    }
+
+    /// Set ToT parameters
+    pub fn with_tot(mut self, depth: usize, width: usize) -> Self {
+        self.max_tot_depth = depth;
+        self.max_tot_width = width;
+        self
+    }
+
+    /// Set verification strictness
+    pub fn with_strictness(mut self, strictness: f32) -> Self {
+        self.verification_strictness = strictness.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Disable caching
+    pub fn without_cache(mut self) -> Self {
+        self.cache_enabled = false;
+        self
+    }
+}
+
+/// ============================================================================
 /// UNIT TESTS
 /// ============================================================================
 

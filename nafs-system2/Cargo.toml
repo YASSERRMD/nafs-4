@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["NAFS Team <dev@nafs.dev>"]
 license = "Apache-2.0"
-description = "System 2: Reasoning (Slow/Deliberate)"
+description = "System 2 (Aql): Deliberate Reasoning Layer"
 
 [dependencies]
 nafs-core = { path = "../nafs-core" }
@@ -15,6 +15,7 @@ async-trait = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+chrono = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"

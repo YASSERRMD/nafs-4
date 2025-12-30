@@ -33,8 +33,13 @@ pub mod types;
 // Re-export all types for convenience
 pub use error::{ErrorCategory, NafsError, Result};
 pub use types::{
+    // Core types
     Action, Agent, AgentConfig, Episode, EvolutionEntry, ExtrinsicReward, Goal, IntrinsicReward,
     MemoryCategory, MemoryItem, Outcome, Reward, SafetyLevel, SelfModel, State, TextualGradient,
+    // System 2 reasoning types
+    CachedReasoning, ChainOfThought, EnforcementStrategy, ReasoningStep, SupervisionFeedback,
+    SymbolicConstraint, System2Config, ToTNode, ToTNodeStatus, VerificationResult,
+    VerificationSeverity,
 };
 
 /// NAFS-4 version
