@@ -4,6 +4,7 @@ pub fn print_success(msg: &str) {
     println!("{} {}", "✓".green(), msg);
 }
 
+#[allow(dead_code)]
 pub fn print_error(msg: &str) {
     eprintln!("{} {}", "✗".red(), msg);
 }

@@ -471,7 +471,7 @@ impl LLMProvider for MistralProvider {
         let content = choice["message"]["content"].as_str().unwrap_or_default().to_string();
         Ok(ChatResponse { content, finish_reason: FinishReason::Stop, usage: Default::default() })
     }
-    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+    async fn embed(&self, _text: &str) -> Result<Vec<f32>> {
         // Simple implementation
         Ok(vec![0.0])
     }

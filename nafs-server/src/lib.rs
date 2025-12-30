@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, Json, State},
     http::StatusCode,
-    routing::{get, post, delete},
+    routing::{get, post},
     Router,
     response::IntoResponse,
 };
@@ -90,7 +90,7 @@ async fn create_agent(
         last_updated: chrono::Utc::now(),
     };
 
-    let mut orch = orchestrator.write().await;
+    let orch = orchestrator.write().await;
     match orch.create_agent(name, role).await {
         Ok(agent) => (StatusCode::CREATED, Json(json!({
             "id": agent.id,

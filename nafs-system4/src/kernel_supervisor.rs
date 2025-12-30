@@ -9,7 +9,7 @@ use nafs_core::{
 
 /// Kernel supervisor for ensuring safety and alignment
 pub struct KernelSupervisor {
-    agent_id: String,
+    _agent_id: String,
     kernel_constraints: Vec<KernelConstraint>,
 }
 
@@ -38,7 +38,7 @@ impl KernelSupervisor {
         ];
 
         Self {
-            agent_id,
+            _agent_id: agent_id,
             kernel_constraints,
         }
     }

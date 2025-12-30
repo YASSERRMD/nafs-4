@@ -2,7 +2,9 @@
 //!
 //! Maintains immutable audit trail of all self-modifications.
 
-use nafs_core::{ApprovalStatus, EvolutionEntry, TextualGradient};
+use nafs_core::{ApprovalStatus, EvolutionEntry};
+#[cfg(test)]
+use nafs_core::TextualGradient;
 use std::collections::VecDeque;
 
 /// Log for tracking system evolution

@@ -8,14 +8,14 @@
 //! This is the "fast thinking" system that handles routine tasks
 //! without engaging the more expensive System 2 reasoning.
 
-use nafs_core::{Action, Result, State};
+use nafs_core::{Action, State};
 
 /// System 1 processor for fast, intuitive responses
 pub struct System1 {
     /// Heuristic rules for pattern matching
     heuristics: Vec<Heuristic>,
     /// Cached patterns for fast lookup
-    pattern_cache: Vec<Pattern>,
+    _pattern_cache: Vec<Pattern>,
 }
 
 /// A heuristic rule for quick decision making
@@ -40,7 +40,7 @@ impl System1 {
     pub fn new() -> Self {
         Self {
             heuristics: Vec::new(),
-            pattern_cache: Vec::new(),
+            _pattern_cache: Vec::new(),
         }
     }
 
