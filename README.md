@@ -29,6 +29,13 @@ NAFS-4 includes native support for a wide range of global and regional LLM provi
 - **Chinese Providers:** DeepSeek, Alibaba Cloud Qwen, Zhipu AI (ChatGLM), 01.AI (Yi)
 - **Local/Private:** Ollama, LocalAI, and any OpenAI-compatible endpoint
 
+## Memory & Storage
+
+NAFS-4 features a unified memory subsystem that abstracts vector and graph storage:
+- **Vector Storage:** Native integration with **Barq-DB** for high-dimensional similarity search.
+- **Graph Storage:** Native integration with **Barq-GraphDB** for complex relational memory models and hybrid traversal.
+- **Embedded:** Supports flexible in-memory storage for development and testing.
+
 ## Key Features
 
 - **Neuro-Symbolic Reasoning**: Combines Large Language Model (LLM) flexibility with symbolic logic verification.
