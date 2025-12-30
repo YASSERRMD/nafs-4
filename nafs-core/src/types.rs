@@ -1206,6 +1206,31 @@ pub struct TextualGradient {
     pub impact_estimate: f32,          // Estimated impact on success rate
 }
 
+impl TextualGradient {
+    pub fn new(
+        failed_action: impl Into<String>,
+        root_cause: impl Into<String>,
+        suggested_fix: impl Into<String>,
+        target_module: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            failed_action: failed_action.into(),
+            root_cause: root_cause.into(),
+            suggested_fix: suggested_fix.into(),
+            target_module: target_module.into(),
+            target_field: "generic".to_string(),
+            confidence: 0.5,
+            impact_estimate: 0.5,
+        }
+    }
+
+    pub fn with_confidence(mut self, confidence: f32) -> Self {
+        self.confidence = confidence.clamp(0.0, 1.0);
+        self
+    }
+}
+
 /// A gradient accumulator for batching updates
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GradientBatch {

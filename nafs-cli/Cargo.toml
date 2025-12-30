@@ -4,21 +4,16 @@ version = "0.1.0"
 edition = "2021"
 authors = ["NAFS Team <dev@nafs.dev>"]
 license = "Apache-2.0"
-description = "Command-line interface for NAFS-4"
-
-[[bin]]
-name = "nafs"
-path = "src/main.rs"
+description = "Command Line Interface for NAFS-4"
 
 [dependencies]
 nafs-core = { path = "../nafs-core" }
-nafs-logging = { path = "../nafs-logging" }
+nafs-orchestrator = { path = "../nafs-orchestrator" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tracing = { workspace = true }
-anyhow = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
-
-[dev-dependencies]
-tokio-test = "0.4"
+tracing = { workspace = true }
+tracing-subscriber = "0.3"
+uuid = { workspace = true }
+chrono = { workspace = true }

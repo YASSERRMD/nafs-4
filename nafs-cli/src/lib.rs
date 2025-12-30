@@ -2,6 +2,8 @@
 //!
 //! Provides command-line interface functionality.
 
+use nafs_core::Result;
+
 /// CLI configuration
 pub struct CliConfig {
     pub verbose: bool,
@@ -18,7 +20,7 @@ impl Default for CliConfig {
 }
 
 /// Run the CLI with the given configuration
-pub fn run(_config: CliConfig) -> anyhow::Result<()> {
-    // TODO: Implement CLI logic
+pub fn run(_config: CliConfig) -> Result<()> {
+    // TODO: Implement CLI logic if library exposure is needed
     Ok(())
 }
