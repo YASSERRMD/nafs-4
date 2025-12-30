@@ -10,6 +10,17 @@ struct Orchestrator {
     inner: Arc<NafsOrchestrator>,
 }
 
+#[pyclass]
+#[derive(Clone)]
+struct AgentResponse {
+    #[pyo3(get)]
+    pub result: String,
+    #[pyo3(get)]
+    pub metadata: HashMap<String, String>,
+    #[pyo3(get)]
+    pub execution_time_ms: u32,
+}
+
 #[pymethods]
 impl Orchestrator {
     #[staticmethod]
@@ -56,7 +67,12 @@ impl Orchestrator {
              };
              let resp = orch.execute_request(req).await
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-             Ok(resp.result)
+             
+             Ok(AgentResponse {
+                 result: resp.result,
+                 metadata: resp.metadata,
+                 execution_time_ms: resp.execution_time_ms,
+             })
         })
     }
     
@@ -72,5 +88,6 @@ impl Orchestrator {
 #[pymodule]
 fn nafs(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Orchestrator>()?;
+    m.add_class::<AgentResponse>()?;
     Ok(())
 }
