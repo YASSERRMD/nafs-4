@@ -3,7 +3,7 @@ name = "nafs-server"
 version = "0.1.0"
 edition = "2021"
 authors = ["NAFS Team <dev@nafs.dev>"]
-license = "Apache-2.0"
+license = "MIT"
 description = "REST API Server for NAFS-4"
 
 [dependencies]

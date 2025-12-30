@@ -3,7 +3,7 @@ name = "nafs-system1"
 version = "0.1.0"
 edition = "2021"
 authors = ["NAFS Team <dev@nafs.dev>"]
-license = "Apache-2.0"
+license = "MIT"
 description = "System 1: Perception and Action (Fast/Intuitive)"
 
 [dependencies]

@@ -3,7 +3,7 @@ name = "nafs-memory"
 version = "0.1.0"
 edition = "2021"
 authors = ["NAFS Team <dev@nafs.dev>"]
-license = "Apache-2.0"
+license = "MIT"
 description = "Memory subsystem: Vector DB and Graph DB interfaces"
 
 [dependencies]

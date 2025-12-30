@@ -3,7 +3,7 @@ name = "nafs-tools"
 version = "0.1.0"
 edition = "2021"
 authors = ["NAFS Team <dev@nafs.dev>"]
-license = "Apache-2.0"
+license = "MIT"
 description = "Tool management for agent actions"
 
 [dependencies]
