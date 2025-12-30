@@ -1,0 +1,24 @@
+[package]
+name = "nafs-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["NAFS Team <dev@nafs.dev>"]
+license = "Apache-2.0"
+description = "Command-line interface for NAFS-4"
+
+[[bin]]
+name = "nafs"
+path = "src/main.rs"
+
+[dependencies]
+nafs-core = { path = "../nafs-core" }
+nafs-logging = { path = "../nafs-logging" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+clap = { version = "4.4", features = ["derive"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
