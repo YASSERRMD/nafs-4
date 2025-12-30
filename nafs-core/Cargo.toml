@@ -1,0 +1,21 @@
+[package]
+name = "nafs-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["NAFS Team <dev@nafs.dev>"]
+license = "Apache-2.0"
+description = "Core types and traits for NAFS-4 framework"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
