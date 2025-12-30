@@ -1,0 +1,18 @@
+[package]
+name = "nafs-integration"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+nafs-core = { path = "../nafs-core" }
+nafs-orchestrator = { path = "../nafs-orchestrator" }
+nafs-server = { path = "../nafs-server" }
+tokio = { workspace = true }
+reqwest = { version = "0.11", features = ["json"] }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = "1.0"
+axum = "0.7"

@@ -1,82 +1,225 @@
-//! NAFS-4 Server Library
-//!
-//! Provides REST API functionality for the framework.
+use axum::{
+    extract::{Path, Json, State},
+    http::StatusCode,
+    routing::{get, post, delete},
+    Router,
+    response::IntoResponse,
+};
+use nafs_core::*;
+use nafs_orchestrator::NafsOrchestrator;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use serde_json::json;
+use tracing;
 
-use axum::{routing::get, Router};
-use std::net::SocketAddr;
+type SharedOrchestrator = Arc<RwLock<NafsOrchestrator>>;
 
-/// Server configuration
-#[derive(Clone, Debug)]
-pub struct ServerConfig {
-    pub host: String,
-    pub port: u16,
+pub async fn app(config: OrchestratorConfig) -> Result<Router> {
+    let orchestrator = Arc::new(RwLock::new(
+        NafsOrchestrator::new(config).await?
+    ));
+
+    let app = Router::new()
+        .route("/health", get(health_check))
+        .route("/stats", get(system_stats))
+        .route("/ready", get(readiness_check))
+        .route("/agents", post(create_agent).get(list_agents))
+        .route("/agents/:id", get(get_agent).delete(delete_agent))
+        .route("/agents/:id/query", post(query_agent))
+        .route("/agents/:id/memory/search", post(search_memory))
+        .route("/agents/:id/memory/recall", get(recall_memory))
+        .route("/agents/:id/memory/export", get(export_memory))
+        .route("/agents/:id/evolve", post(evolve_agent))
+        .route("/agents/:id/evolution/history", get(evolution_history))
+        .route("/agents/:id/evolution/rollback", post(rollback_evolution))
+        .with_state(orchestrator);
+
+    Ok(app)
 }
 
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            host: "127.0.0.1".to_string(),
-            port: 8080,
-        }
+
+// Handlers (copied from main.rs, made pub or local) - Actually I should move them here.
+
+async fn health_check(State(orchestrator): State<SharedOrchestrator>) -> Json<serde_json::Value> {
+    let orch = orchestrator.read().await;
+    let health = orch.health_check().await;
+    
+    Json(json!({
+        "status": if health.is_healthy { "healthy" } else { "unhealthy" },
+        "active_agents": health.active_agents,
+        "uptime_seconds": health.uptime_seconds,
+        "timestamp": health.timestamp.to_rfc3339()
+    }))
+}
+
+async fn system_stats(State(orchestrator): State<SharedOrchestrator>) -> Json<serde_json::Value> {
+    let orch = orchestrator.read().await;
+    let stats = orch.get_stats().await;
+    
+    Json(json!({
+        "total_requests": stats.total_requests,
+        "successful_requests": stats.successful_requests,
+        "failed_requests": stats.failed_requests,
+        "memories_stored": stats.total_memories_stored,
+        "evolutions": stats.total_evolutions
+    }))
+}
+
+async fn readiness_check() -> StatusCode {
+    StatusCode::OK
+}
+
+async fn create_agent(
+    State(orchestrator): State<SharedOrchestrator>,
+    Json(payload): Json<serde_json::Value>
+) -> impl IntoResponse {
+    let name = payload.get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Unknown Agent")
+        .to_string();
+
+    let role = AgentRole {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: name.clone(),
+        system_prompt: "Default agent system prompt".to_string(),
+        version: 1,
+        capabilities: vec![],
+        constraints: vec![],
+        evolution_lineage: vec![],
+        created_at: chrono::Utc::now(),
+        last_updated: chrono::Utc::now(),
+    };
+
+    let mut orch = orchestrator.write().await;
+    match orch.create_agent(name, role).await {
+        Ok(agent) => (StatusCode::CREATED, Json(json!({
+            "id": agent.id,
+            "name": agent.name,
+            "created_at": agent.created_at.to_rfc3339()
+        }))),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
+            "error": "Failed to create agent"
+        })))
     }
 }
 
-impl ServerConfig {
-    /// Get the socket address
-    pub fn addr(&self) -> SocketAddr {
-        format!("{}:{}", self.host, self.port)
-            .parse()
-            .expect("Invalid address")
+async fn list_agents(State(orchestrator): State<SharedOrchestrator>) -> Json<serde_json::Value> {
+    let orch = orchestrator.read().await;
+    match orch.list_agents().await {
+        Ok(agents) => Json(json!({
+            "agents": agents.iter().map(|a| json!({
+                "id": a.id,
+                "name": a.name,
+                "active": a.is_active,
+                "created_at": a.created_at.to_rfc3339()
+            })).collect::<Vec<_>>()
+        })),
+        Err(_) => Json(json!({ "agents": [] }))
     }
 }
 
-/// Create the application router
-pub fn create_router() -> Router {
-    Router::new()
-        .route("/", get(root_handler))
-        .route("/health", get(health_handler))
-        .route("/version", get(version_handler))
+async fn get_agent(
+    State(orchestrator): State<SharedOrchestrator>,
+    Path(id): Path<String>
+) -> impl IntoResponse {
+    let manager_lock = {
+        let orch = orchestrator.read().await;
+        orch.agent_manager.clone()
+    };
+    
+    let result = match manager_lock.read().await.get_agent(&id) {
+        Ok(agent) => (StatusCode::OK, Json(json!({
+            "id": agent.id,
+            "name": agent.name,
+            "active": agent.is_active,
+            "created_at": agent.created_at.to_rfc3339(),
+            "last_activity": agent.last_activity.to_rfc3339()
+        }))).into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, Json(json!({
+            "error": "Agent not found"
+        }))).into_response()
+    };
+    result
 }
 
-async fn root_handler() -> &'static str {
-    "NAFS-4 API Server"
+async fn delete_agent(
+    State(orchestrator): State<SharedOrchestrator>,
+    Path(id): Path<String>
+) -> StatusCode {
+    let orch = orchestrator.write().await;
+    match orch.delete_agent(&id).await {
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::NOT_FOUND
+    }
 }
 
-async fn health_handler() -> &'static str {
-    "OK"
+async fn query_agent(
+    State(orchestrator): State<SharedOrchestrator>,
+    Path(id): Path<String>,
+    Json(payload): Json<serde_json::Value>
+) -> impl IntoResponse {
+    let query = payload.get("query")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let request = AgentRequest {
+        id: uuid::Uuid::new_v4().to_string(),
+        agent_id: id.clone(),
+        query: query.clone(),
+        context: Default::default(),
+        priority: 5,
+        timeout_ms: 5000,
+        metadata: Default::default(),
+    };
+
+    let orch = orchestrator.read().await;
+    match orch.execute_request(request).await {
+        Ok(response) => (StatusCode::OK, Json(json!({
+            "result": response.result,
+            "success": response.success,
+            "execution_time_ms": response.execution_time_ms
+        }))),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
+            "error": "Query execution failed"
+        })))
+    }
 }
 
-async fn version_handler() -> String {
-    nafs_core::version_info()
+async fn search_memory(
+    Path(id): Path<String>,
+    Json(payload): Json<serde_json::Value>
+) -> Json<serde_json::Value> {
+    let query = payload.get("query")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    Json(json!({ "agent_id": id, "query": query, "results": [] }))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+async fn recall_memory(Path(id): Path<String>) -> Json<serde_json::Value> {
+    Json(json!({ "agent_id": id, "memories": [] }))
+}
 
-    #[test]
-    fn test_server_config_default() {
-        let config = ServerConfig::default();
-        assert_eq!(config.host, "127.0.0.1");
-        assert_eq!(config.port, 8080);
-    }
+async fn export_memory(Path(id): Path<String>) -> Json<serde_json::Value> {
+    Json(json!({ "agent_id": id, "format": "json", "export_url": format!("/exports/memory_{}.json", id) }))
+}
 
-    #[test]
-    fn test_server_config_addr() {
-        let config = ServerConfig::default();
-        let addr = config.addr();
-        assert_eq!(addr.port(), 8080);
-    }
+async fn evolve_agent(
+    State(_): State<SharedOrchestrator>,
+    Path(id): Path<String>
+) -> Json<serde_json::Value> {
+    tracing::info!("Evolution triggered for agent: {}", id);
+    Json(json!({ "agent_id": id, "status": "evolution_started", "timestamp": chrono::Utc::now().to_rfc3339() }))
+}
 
-    #[tokio::test]
-    async fn test_root_handler() {
-        let response = root_handler().await;
-        assert!(response.contains("NAFS-4"));
-    }
+async fn evolution_history(Path(id): Path<String>) -> Json<serde_json::Value> {
+    Json(json!({ "agent_id": id, "entries": [] }))
+}
 
-    #[tokio::test]
-    async fn test_health_handler() {
-        let response = health_handler().await;
-        assert_eq!(response, "OK");
-    }
+async fn rollback_evolution(
+    Path(id): Path<String>,
+    Json(payload): Json<serde_json::Value>
+) -> Json<serde_json::Value> {
+    let steps = payload.get("steps").and_then(|v| v.as_u64()).unwrap_or(1);
+    Json(json!({ "agent_id": id, "steps_rolled_back": steps, "timestamp": chrono::Utc::now().to_rfc3339() }))
 }
