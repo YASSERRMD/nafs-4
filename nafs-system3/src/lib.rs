@@ -8,8 +8,7 @@
 //!
 //! This system provides the agent with awareness of its own state.
 
-use async_trait::async_trait;
-use nafs_core::{MemoryCategory, MemoryItem, Result, SelfModel, State};
+use nafs_core::{MemoryCategory, MemoryItem, SelfModel};
 use std::collections::HashMap;
 
 /// Memory module for storing and retrieving memories

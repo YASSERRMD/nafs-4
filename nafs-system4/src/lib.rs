@@ -9,7 +9,7 @@
 //! This is the core innovation of NAFS-4.
 
 use chrono::Utc;
-use nafs_core::{EvolutionEntry, NafsError, Outcome, Result, TextualGradient};
+use nafs_core::{EvolutionEntry, Outcome, Result, TextualGradient};
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -89,6 +89,7 @@ pub enum FailureSeverity {
 /// Generates textual gradients from failure analyses
 pub struct GradientGenerator {
     /// LLM model to use for generation
+    #[allow(dead_code)]
     model: String,
 }
 

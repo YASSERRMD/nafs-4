@@ -8,7 +8,7 @@
 //! This is the "slow thinking" system engaged for complex tasks.
 
 use async_trait::async_trait;
-use nafs_core::{Action, Goal, NafsError, Result, State};
+use nafs_core::{Action, Goal, Result, State};
 
 /// Trait for planning implementations
 #[async_trait]
