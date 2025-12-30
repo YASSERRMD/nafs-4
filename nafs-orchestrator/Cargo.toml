@@ -8,6 +8,7 @@ license = "MIT"
 [dependencies]
 nafs-core = { path = "../nafs-core" }
 nafs-llm = { path = "../nafs-llm" }
+nafs-memory = { path = "../nafs-memory" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -19,6 +19,7 @@ pub use state_persistence::StatePersistence;
 
 use nafs_core::*;
 use nafs_llm::*;
+use nafs_memory::UnifiedMemory;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -37,6 +38,8 @@ pub struct NafsOrchestrator {
     pub health_monitor: Arc<HealthMonitor>,
     /// LLM Provider
     pub llm_provider: Arc<dyn LLMProvider>,
+    /// Unified memory system
+    pub memory: Arc<UnifiedMemory>,
 }
 
 impl NafsOrchestrator {
@@ -65,6 +68,16 @@ impl NafsOrchestrator {
             Arc::new(mock)
         };
 
+        // Initialize Memory system
+        let memory = if let (Ok(db_addr), Ok(graph_addr)) = (std::env::var("BARQ_DB_ADDR"), std::env::var("BARQ_GRAPH_ADDR")) {
+            tracing::info!("Using Barq-DB and Barq-GraphDB for UnifiedMemory");
+            let collection = std::env::var("BARQ_COLLECTION").unwrap_or_else(|_| "nafs_memories".to_string());
+            Arc::new(UnifiedMemory::barq_memory(db_addr, graph_addr, collection).await?)
+        } else {
+            tracing::info!("Using in-memory storage for UnifiedMemory");
+            Arc::new(UnifiedMemory::in_memory())
+        };
+
         Ok(Self {
             config,
             agent_manager: Arc::new(RwLock::new(AgentManager::new())),
@@ -72,6 +85,7 @@ impl NafsOrchestrator {
             event_bus,
             health_monitor,
             llm_provider,
+            memory,
         })
     }
 
