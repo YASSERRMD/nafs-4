@@ -34,14 +34,18 @@ pub mod types;
 pub use error::{ErrorCategory, NafsError, Result};
 pub use types::{
     // Core types
-    Action, Agent, AgentConfig, Episode, EvolutionEntry, ExtrinsicReward, Goal, IntrinsicReward,
-    MemoryCategory, MemoryItem, Outcome, Reward, SafetyLevel, SelfModel, State, TextualGradient,
+    Action, Agent, AgentConfig, Episode, ExtrinsicReward, Goal, IntrinsicReward,
+    MemoryCategory, MemoryItem, Outcome, Reward, SafetyLevel, SelfModel, State,
     // System 2 reasoning types
     CachedReasoning, ChainOfThought, EnforcementStrategy, ReasoningStep, SupervisionFeedback,
     SymbolicConstraint, System2Config, ToTNode, ToTNodeStatus, VerificationResult,
     VerificationSeverity,
     // System 3 meta-cognition types
     EpisodicEvent, EnvironmentEvent, KnowledgeEntity, Perception, System3Config, UserModel,
+    // System 4 evolution types
+    AgentRole, ApprovalStatus, CapabilityGap, ConstraintSeverity, EvolutionEntry, GradientBatch,
+    KernelConstraint, KernelMode, PerformanceMetrics, RecordedFailure, System4Config,
+    TextualGradient,
 };
 
 /// NAFS-4 version

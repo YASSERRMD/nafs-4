@@ -346,72 +346,8 @@ impl SelfModel {
     }
 }
 
-/// Textual gradient for evolution
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TextualGradient {
-    pub id: String,
-    pub failed_action: String,
-    pub root_cause: String,              // LLM analysis of why it failed
-    pub suggested_fix: String,           // LLM suggestion for improvement
-    pub target_module: String,           // Which module to update
-    pub confidence: f32,                 // How confident in the fix (0.0-1.0)
-}
 
-impl TextualGradient {
-    /// Create a new textual gradient
-    pub fn new(
-        failed_action: impl Into<String>,
-        root_cause: impl Into<String>,
-        suggested_fix: impl Into<String>,
-        target_module: impl Into<String>,
-    ) -> Self {
-        Self {
-            id: Uuid::new_v4().to_string(),
-            failed_action: failed_action.into(),
-            root_cause: root_cause.into(),
-            suggested_fix: suggested_fix.into(),
-            target_module: target_module.into(),
-            confidence: 0.5,
-        }
-    }
 
-    /// Set confidence level
-    pub fn with_confidence(mut self, confidence: f32) -> Self {
-        self.confidence = confidence.clamp(0.0, 1.0);
-        self
-    }
-}
-
-/// Evolution log entry
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EvolutionEntry {
-    pub id: String,
-    pub timestamp: DateTime<Utc>,
-    pub gradient: TextualGradient,
-    pub approved_by_kernel: bool,
-    pub applied_changes: String,         // What was changed
-    pub performance_delta: f32,          // Impact on success rate
-}
-
-impl EvolutionEntry {
-    /// Create a new evolution entry
-    pub fn new(gradient: TextualGradient, approved: bool, changes: impl Into<String>) -> Self {
-        Self {
-            id: Uuid::new_v4().to_string(),
-            timestamp: Utc::now(),
-            gradient,
-            approved_by_kernel: approved,
-            applied_changes: changes.into(),
-            performance_delta: 0.0,
-        }
-    }
-
-    /// Set performance delta
-    pub fn with_performance_delta(mut self, delta: f32) -> Self {
-        self.performance_delta = delta;
-        self
-    }
-}
 
 /// Configuration for the agent
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1200,6 +1136,184 @@ impl Perception {
     pub fn with_confidence(mut self, confidence: f32) -> Self {
         self.confidence = confidence.clamp(0.0, 1.0);
         self
+    }
+}
+
+/// ============================================================================
+/// EVOLUTION LAYER TYPES (System 4 - Tatwur)
+/// ============================================================================
+
+/// A failure recorded for analysis
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecordedFailure {
+    pub id: String,
+    pub timestamp: DateTime<Utc>,
+    pub action_attempted: String,
+    pub error_message: String,
+    pub context: HashMap<String, String>,
+    pub severity: u8,                  // 1-10, higher = more critical
+}
+
+impl RecordedFailure {
+    /// Create a new recorded failure
+    pub fn new(action_attempted: impl Into<String>, error_message: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4().to_string(),
+            timestamp: Utc::now(),
+            action_attempted: action_attempted.into(),
+            error_message: error_message.into(),
+            context: HashMap::new(),
+            severity: 1,
+        }
+    }
+
+    /// Set context key-value
+    pub fn with_context(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.context.insert(key.into(), value.into());
+        self
+    }
+
+    /// Set severity
+    pub fn with_severity(mut self, severity: u8) -> Self {
+        self.severity = severity.clamp(1, 10);
+        self
+    }
+}
+
+/// A textual gradient (like a loss in gradient descent, but textual)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TextualGradient {
+    pub id: String,
+    pub failed_action: String,
+    pub root_cause: String,            // LLM analysis of why it failed
+    pub suggested_fix: String,         // LLM suggestion for improvement
+    pub target_module: String,         // Which system/agent to update
+    pub target_field: String,          // "system_prompt", "capabilities", "constraints"
+    pub confidence: f32,               // How confident in the fix (0.0-1.0)
+    pub impact_estimate: f32,          // Estimated impact on success rate
+}
+
+/// A gradient accumulator for batching updates
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GradientBatch {
+    pub id: String,
+    pub gradients: Vec<TextualGradient>,
+    pub created_at: DateTime<Utc>,
+    pub total_impact_estimate: f32,    // Sum of all impacts
+}
+
+/// An agent role (system prompt + metadata)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AgentRole {
+    pub id: String,
+    pub name: String,
+    pub system_prompt: String,         // The core instruction
+    pub version: u32,
+    pub capabilities: Vec<String>,
+    pub constraints: Vec<String>,      // Hard rules to follow
+    pub evolution_lineage: Vec<String>, // History of updates
+    pub created_at: DateTime<Utc>,
+    pub last_updated: DateTime<Utc>,
+}
+
+/// A kernel constraint (inviolable rule)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KernelConstraint {
+    pub id: String,
+    pub rule_text: String,             // Human-readable rule
+    pub severity: ConstraintSeverity,
+    pub immutable: bool,               // Can never be removed
+}
+
+/// How severe a constraint violation is
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConstraintSeverity {
+    Critical,   // System must not violate
+    High,       // Must escalate to human
+    Medium,     // Log warning and continue
+    Low,        // Just inform
+}
+
+/// Evolution approval status
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ApprovalStatus {
+    Pending,       // Awaiting human review
+    AutoApproved,  // Passed kernel checks
+    Approved,      // Human approved
+    Rejected,      // Human rejected
+}
+
+/// An evolution entry (immutable record of self-modification)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EvolutionEntry {
+    pub id: String,
+    pub timestamp: DateTime<Utc>,
+    pub gradient: TextualGradient,
+    pub approval_status: ApprovalStatus,
+    pub approved_by: Option<String>,   // Human or "kernel_supervisor"
+    pub applied_changes: String,       // Exact text of what was changed
+    pub performance_delta_before: f32,
+    pub performance_delta_after: f32,
+    pub rollback_available: bool,
+}
+
+/// Capability gap (skill that needs learning)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CapabilityGap {
+    pub id: String,
+    pub missing_skill: String,
+    pub impact_severity: f32,          // 0.0-1.0, how much this hurts performance
+    pub learning_objective: Goal,
+    pub recommended_training: Vec<String>,
+    pub estimated_learning_time: u32,  // Days
+}
+
+/// System 4 configuration
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct System4Config {
+    pub enable_evolution: bool,
+    pub evolution_schedule: String,    // Cron: "0 0 * * *" = daily at midnight
+    pub max_gradient_accumulation: usize,
+    pub kernel_mode: KernelMode,       // How strict is safety?
+    pub auto_approve_threshold: f32,   // Risk score below which auto-approve (0.0-1.0)
+}
+
+/// Kernel operation mode
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KernelMode {
+    Permissive,     // Most changes auto-approved
+    Standard,       // Medium safety checks
+    Strict,         // Most changes need human approval
+}
+
+impl Default for System4Config {
+    fn default() -> Self {
+        Self {
+            enable_evolution: true,
+            evolution_schedule: "0 0 * * *".to_string(), // Daily at midnight
+            max_gradient_accumulation: 100,
+            kernel_mode: KernelMode::Standard,
+            auto_approve_threshold: 0.3,
+        }
+    }
+}
+
+/// Performance metrics for comparing before/after evolution
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PerformanceMetrics {
+    pub task_success_rate: f32,
+    pub average_execution_time: f32,
+    pub error_rate: f32,
+    pub user_satisfaction: f32,
+    pub safety_score: f32,
+}
+
+impl PerformanceMetrics {
+    pub fn composite_score(&self) -> f32 {
+        (self.task_success_rate * 0.3
+            + (1.0 - self.error_rate) * 0.2
+            + self.safety_score * 0.5)
+            / 1.0
     }
 }
 
