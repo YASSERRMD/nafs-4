@@ -1,0 +1,44 @@
+syntax = "proto3";
+package barq_db;
+
+service BarqDB {
+  rpc CreateCollection(CreateCollectionRequest) returns (CreateCollectionResponse);
+  rpc InsertDocument(InsertDocumentRequest) returns (InsertDocumentResponse);
+  rpc Search(SearchRequest) returns (SearchResponse);
+}
+
+message CreateCollectionRequest {
+  string name = 1;
+  int32 dimension = 2;
+}
+
+message CreateCollectionResponse {
+  bool success = 1;
+}
+
+message InsertDocumentRequest {
+  string collection_name = 1;
+  string id = 2;
+  repeated float values = 3;
+  string metadata_json = 4;
+}
+
+message InsertDocumentResponse {
+  bool success = 1;
+}
+
+message SearchRequest {
+  string collection_name = 1;
+  repeated float vector = 2;
+  int32 limit = 3;
+}
+
+message SearchResponse {
+  repeated SearchHit hits = 1;
+}
+
+message SearchHit {
+  string id = 1;
+  float score = 2;
+  string metadata_json = 3;
+}

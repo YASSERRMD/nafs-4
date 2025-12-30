@@ -6,6 +6,10 @@
 //!
 //! Abstracted behind traits to allow different backends.
 
+pub mod providers;
+
+pub use providers::{BarqDBStore, BarqGraphStore};
+
 use async_trait::async_trait;
 use nafs_core::{MemoryItem, Result};
 use std::collections::HashMap;
@@ -259,6 +263,17 @@ impl UnifiedMemory {
             vector_store: Box::new(InMemoryVectorStore::new()),
             graph_store: Box::new(InMemoryGraphStore::new()),
         }
+    }
+
+    /// Create a unified memory using Barq providers
+    pub async fn barq_memory(db_addr: String, graph_addr: String, collection: String) -> Result<Self> {
+        let vector_store = BarqDBStore::connect(db_addr, collection).await?;
+        let graph_store = BarqGraphStore::connect(graph_addr).await?;
+        
+        Ok(Self {
+            vector_store: Box::new(vector_store),
+            graph_store: Box::new(graph_store),
+        })
     }
 
     /// Store a memory item

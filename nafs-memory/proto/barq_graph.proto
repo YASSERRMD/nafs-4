@@ -1,0 +1,53 @@
+syntax = "proto3";
+package barq_graph;
+
+service BarqGraph {
+  rpc CreateNode(CreateNodeRequest) returns (CreateNodeResponse);
+  rpc CreateEdge(CreateEdgeRequest) returns (CreateEdgeResponse);
+  rpc GetNeighbors(GetNeighborsRequest) returns (GetNeighborsResponse);
+  rpc QueryByLabel(QueryByLabelRequest) returns (QueryByLabelResponse);
+}
+
+message CreateNodeRequest {
+  string id = 1;
+  repeated string labels = 2;
+  map<string, string> properties = 3;
+}
+
+message CreateNodeResponse {
+  bool success = 1;
+}
+
+message CreateEdgeRequest {
+  string from = 1;
+  string to = 2;
+  string relation = 3;
+  map<string, string> properties = 4;
+}
+
+message CreateEdgeResponse {
+  bool success = 1;
+}
+
+message GetNeighborsRequest {
+  string id = 1;
+  optional string relation = 2;
+}
+
+message GetNeighborsResponse {
+  repeated Node nodes = 1;
+}
+
+message QueryByLabelRequest {
+  string label = 1;
+}
+
+message QueryByLabelResponse {
+  repeated Node nodes = 1;
+}
+
+message Node {
+  string id = 1;
+  repeated string labels = 2;
+  map<string, string> properties = 3;
+}

@@ -15,6 +15,12 @@ async-trait = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+tonic = { version = "0.10", features = ["tls", "tls-roots"] }
+prost = "0.12"
+prost-types = "0.12"
+
+[build-dependencies]
+tonic-build = "0.10"
 
 [dev-dependencies]
 tokio-test = "0.4"
