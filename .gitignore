@@ -9,3 +9,4 @@ Cargo.lock
 .vscode/
 .idea/
 *.swp
+nafs4_framework_specification.md
