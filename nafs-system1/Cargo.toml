@@ -1,0 +1,19 @@
+[package]
+name = "nafs-system1"
+version = "0.1.0"
+edition = "2021"
+authors = ["NAFS Team <dev@nafs.dev>"]
+license = "Apache-2.0"
+description = "System 1: Perception and Action (Fast/Intuitive)"
+
+[dependencies]
+nafs-core = { path = "../nafs-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
