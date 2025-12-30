@@ -18,6 +18,7 @@ pub use health_monitor::HealthMonitor;
 pub use state_persistence::StatePersistence;
 
 use nafs_core::*;
+use nafs_llm::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -34,6 +35,8 @@ pub struct NafsOrchestrator {
     pub event_bus: Arc<EventBus>,
     /// Health monitor
     pub health_monitor: Arc<HealthMonitor>,
+    /// LLM Provider
+    pub llm_provider: Arc<dyn LLMProvider>,
 }
 
 impl NafsOrchestrator {
@@ -45,12 +48,30 @@ impl NafsOrchestrator {
         let event_bus = Arc::new(EventBus::new());
         let health_monitor = Arc::new(HealthMonitor::new());
 
+        // Initialize LLM Provider based on env vars
+        let llm_provider: Arc<dyn LLMProvider> = if let Ok(key) = std::env::var("COHERE_API_KEY") {
+            tracing::info!("Using Cohere LLM Provider");
+            Arc::new(CohereProvider::new(CohereConfig::new(key)))
+        } else if let Ok(key) = std::env::var("OPENAI_API_KEY") {
+            tracing::info!("Using OpenAI LLM Provider");
+            Arc::new(OpenAIProvider::new(OpenAIConfig::new(key)))
+        } else if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+            tracing::info!("Using Anthropic LLM Provider");
+            Arc::new(AnthropicProvider::new(AnthropicConfig::new(key)))
+        } else {
+            tracing::warn!("No LLM API key found in env, using Mock Provider");
+            let mock = MockLLMProvider::new("mock");
+            mock.add_response("Simulated LLM Response: I processed your request.");
+            Arc::new(mock)
+        };
+
         Ok(Self {
             config,
             agent_manager: Arc::new(RwLock::new(AgentManager::new())),
             persistence,
             event_bus,
             health_monitor,
+            llm_provider,
         })
     }
 
@@ -60,9 +81,16 @@ impl NafsOrchestrator {
 
         let agent = AgentInstance {
             id: uuid::Uuid::new_v4().to_string(),
-            name,
+            name: name.clone(),
             role,
-            self_model: SelfModel::default(),
+            self_model: SelfModel {
+                agent_id: uuid::Uuid::new_v4().to_string(),
+                identity: format!("I am {}", name),
+                capabilities: HashMap::new(),
+                weaknesses: Vec::new(),
+                terminal_values: Vec::new(),
+                personality: HashMap::new(),
+            },
             created_at: chrono::Utc::now(),
             last_activity: chrono::Utc::now(),
             is_active: true,
@@ -80,38 +108,62 @@ impl NafsOrchestrator {
     /// Execute agent query
     pub async fn execute_request(&self, request: AgentRequest) -> Result<AgentResponse> {
         let manager = self.agent_manager.read().await;
-        let _agent = manager.get_agent(&request.agent_id)?; // Verify agent exists
+        // Verify agent exists
+        let agent = manager.get_agent(&request.agent_id)?.clone(); 
 
-        // In Phase 4, this is a simple placeholder
-        // Phase 5 will integrate the full System 1-4 pipeline
-        let result = format!("Processed query: {}", request.query);
-        let execution_time_ms = 100;
+        // Construct LLM context
+        let system_prompt = format!(
+            "You are {}, a {}. {}", 
+            agent.name, 
+            agent.role.name, 
+            agent.role.system_prompt
+        );
+
+        let messages = vec![
+            ChatMessage::system(system_prompt),
+            ChatMessage::user(request.query.clone())
+        ];
+
+        let config = ChatConfig::default(); // Use defaults for now
+
+        tracing::info!("Sending request to LLM for agent {}", agent.name);
+        let start = std::time::Instant::now();
+        
+        // Execute LLM call
+        let llm_response = self.llm_provider.chat(&messages, &config).await
+            .map_err(|e| {
+                tracing::error!("LLM Error: {}", e);
+                e
+            })?;
+
+        let execution_time_ms = start.elapsed().as_millis() as u32;
 
         let response = AgentResponse {
             request_id: request.id.clone(),
             agent_id: request.agent_id.clone(),
-            result,
+            result: llm_response.content,
             success: true,
             error: None,
             execution_time_ms,
             metadata: HashMap::new(),
         };
 
-        self.event_bus
-            .publish("request_completed", &response.request_id)?;
+        self.event_bus.publish("request_completed", &response.request_id)?;
         Ok(response)
     }
 
     /// Get system health
     pub async fn health_check(&self) -> HealthStatus {
         let manager = self.agent_manager.read().await;
+        // Check LLM health too
+        let llm_healthy = self.llm_provider.health_check().await.unwrap_or(false);
 
         HealthStatus {
-            is_healthy: true,
+            is_healthy: llm_healthy,
             active_agents: manager.count_active(),
             uptime_seconds: self.health_monitor.uptime_seconds(),
             memory_usage_mb: 0.0,
-            last_error: None,
+            last_error: if llm_healthy { None } else { Some("LLM Provider Unhealthy".into()) },
             timestamp: chrono::Utc::now(),
         }
     }
@@ -155,6 +207,7 @@ mod tests {
             .await
             .unwrap();
 
+        // Should use mock provider by default in tests
         let health = orchestrator.health_check().await;
         assert!(health.is_healthy);
     }
