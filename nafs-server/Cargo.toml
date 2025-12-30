@@ -1,0 +1,24 @@
+[package]
+name = "nafs-server"
+version = "0.1.0"
+edition = "2021"
+authors = ["NAFS Team <dev@nafs.dev>"]
+license = "Apache-2.0"
+description = "REST API server for NAFS-4"
+
+[[bin]]
+name = "nafs-server"
+path = "src/main.rs"
+
+[dependencies]
+nafs-core = { path = "../nafs-core" }
+nafs-logging = { path = "../nafs-logging" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+axum = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
