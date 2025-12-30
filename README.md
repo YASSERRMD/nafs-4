@@ -1,110 +1,116 @@
-# NAFS-4: Self-Evolving Neuro-Symbolic Agent Framework
+# NAFS-4: Neuromorphic AI Framework System
 
-**Phase 0: Foundation** ✅
+NAFS-4 is a production-grade, self-evolving cognitive architecture framework implemented in Rust. It integrates four distinct cognitive systems into a cohesive pipeline, enabling the creation of autonomous agents capable of fast reaction, deliberate reasoning, meta-cognition, and self-evolution through textual backpropagation.
 
-A Rust-based, self-evolving agent framework implementing a multi-system cognitive architecture.
+## Architecture
 
-## 🏗️ Architecture
+The framework implements a hierarchical cognitive model inspired by dual-process theory and meta-learning research:
 
-NAFS-4 implements a four-system cognitive model:
+### System 1: Instinct and Perception
+Provides fast, heuristic-based responses to environmental stimuli. It utilizes caching and pattern matching to handle routine tasks efficiently without invoking expensive reasoning resources.
 
-| System | Name | Description |
-|--------|------|-------------|
-| **System 1** | Perception/Action | Fast, intuitive heuristic responses |
-| **System 2** | Reasoning | Slow, deliberate symbolic verification & LLM planning |
-| **System 3** | Meta-Cognition | Self-awareness, memory, executive monitoring |
-| **System 4** | Evolution | Self-improvement via "Textual Backpropagation" |
+### System 2: Deliberate Reasoning
+Implements a Tree of Thought (ToT) reasoning engine. It performs symbolic verification, planning, and multi-step problem solving. This system engages when System 1 heuristics are insufficient or when high-stakes decisions require logical validation.
 
-## 📦 Project Structure
+### System 3: Meta-Cognition and Memory
+Maintains the agent's self-model (`identity`, `capabilities`, `values`) and manages a comprehensive memory system (episodic and semantic). It features an Executive Monitor that tracks internal state, motivation, and goal alignment.
 
-```
-nafs-4/
-├── nafs-core/       # Core types & traits (Goal, State, Action, Agent)
-├── nafs-system1/    # Perception & fast heuristics
-├── nafs-system2/    # Reasoning (SymbolicVerifier, LLMPlanner, TreeOfThought)
-├── nafs-system3/    # Meta-cognition (Memory, SelfModel, ExecutiveMonitor)
-├── nafs-system4/    # Evolution (TextualBackprop, KernelSupervisor)
-├── nafs-memory/     # Vector DB & Graph DB interfaces
-├── nafs-llm/        # LLM provider abstraction
-├── nafs-tools/      # Tool management (registry, executor)
-├── nafs-logging/    # Observability (tracing, metrics)
-├── nafs-cli/        # Command-line interface
-└── nafs-server/     # REST API server
-```
+### System 4: Evolution
+A novel "Textual Backpropagation" mechanism allowing agents to improve over time. By analyzing failure patterns, System 4 generates textual gradients—instructions for self-modification—that selectively update the agent's prompt architecture and capabilities, subject to strict Kernel Supervisor constraints.
 
-## 🚀 Quick Start
+### Orchestrator
+The central coordination layer that routes requests, manages agent lifecycles, and ensures seamless data flow between all cognitive systems.
 
-### Build
+## Key Features
+
+- **Neuro-Symbolic Reasoning**: Combines Large Language Model (LLM) flexibility with symbolic logic verification.
+- **Autonomous Self-Evolution**: Agents iteratively refine their own behavior based on operational outcomes.
+- **Robust Persistence**: Distributed state management for long-running agent processes.
+- **Kernel Safety**: Hard constraints prevent agents from evolving potentially unsafe behaviors.
+- **High Performance**: Built on Rust's async runtime (Tokio) for concurrent agent execution.
+
+## Installation
+
+Ensure you have Rust and Cargo installed (1.70+).
+
 ```bash
-cargo build --all
+git clone https://github.com/nafs-framework/nafs-4.git
+cd nafs-4
+cargo build --release
 ```
 
-### Run Tests
+## Component Usage
+
+The framework exposes its functionality through a Command Line Interface (CLI) and a REST API.
+
+### Command Line Interface (CLI)
+
+The `nafs` binary provides interactive management capabilities.
+
+**Manage Agents**
 ```bash
-cargo test --all
+# Create a new agent
+nafs agent create --name "Analyst_01" --role "Data Analyst"
+
+# List active agents
+nafs agent list
+
+# Query an agent directly
+nafs agent query --agent-id "agent-uuid" --query "Analyze the provided dataset."
 ```
 
-### CLI
+**System Operations**
 ```bash
-cargo run --bin nafs -- --help
-cargo run --bin nafs -- new --name "MyAgent"
-cargo run --bin nafs -- version
+# Check system health and metrics
+nafs system health
+
+# Start the interactive REPL
+nafs repl
 ```
 
-### Server
+### REST API
+
+The `nafs-api` service enables remote integration.
+
+**Start the Server**
 ```bash
-cargo run --bin nafs-server
-# API available at http://127.0.0.1:8080
+cargo run --release -p nafs-api
+# Server listening on http://127.0.0.1:3000
 ```
 
-## 🧠 Core Concepts
+**API Endpoints**
 
-### Agent
-The central entity combining all systems:
-```rust
-use nafs_core::{Agent, Goal, MemoryItem, MemoryCategory};
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | System health status |
+| `POST` | `/agents` | Inspect/Create new agent instances |
+| `POST` | `/agents/:id/query` | Submit a cognitive task to an agent |
+| `GET` | `/agents/:id/memory` | Retrieve agent memory context |
+| `POST` | `/agents/:id/evolve` | Trigger an evolution cycle manually |
 
-let mut agent = Agent::new("MyAgent");
+## Development and Testing
 
-// Set a goal
-let goal = Goal::new("Complete the task", 5)
-    .with_criterion("No errors");
-agent.set_goal(goal);
+The repository includes a comprehensive test suite covering unit logic and end-to-end integration.
 
-// Store a memory
-let memory = MemoryItem::new("Important fact", MemoryCategory::Semantic);
-agent.remember(memory);
+```bash
+# Run all unit tests
+cargo test --workspace
+
+# Run integration pipeline tests
+cargo test -p nafs-integration
 ```
 
-### Evolution (System 4)
-The core innovation - "Textual Backpropagation":
-1. Catch runtime failures
-2. Generate textual "gradients" (fix instructions)
-3. Mutate system prompts
-4. Kernel supervisor blocks unsafe mutations
+## Project Structure
 
-## 📊 Phase 0 Metrics
+- `nafs-core`: Fundamental types and traits.
+- `nafs-system1`: Perception and heuristic modules.
+- `nafs-system2`: Reasoning engines and symbolic verification.
+- `nafs-system3`: Memory systems and meta-cognitive monitors.
+- `nafs-system4`: Evolutionary algorithms and safety kernels.
+- `nafs-orchestrator`: Lifecycle management and event routing.
+- `nafs-cli`: Terminal user interface implementation.
+- `nafs-api`: HTTP/WebSocket API implementation.
 
-| Metric | Value |
-|--------|-------|
-| Crates | 11 |
-| Lines of Rust | 3,000+ |
-| Tests | 58 |
-| Build Time | < 10s |
+## License
 
-## 🛣️ Roadmap
-
-- [x] **Phase 0**: Foundation (Workspace, Core Types)
-- [ ] **Phase 1**: System 2 Implementation (Full Reasoning)
-- [ ] **Phase 2**: System 3 Implementation (Full Awareness)
-- [ ] **Phase 3**: System 4 Implementation (Full Evolution)
-- [ ] **Phase 4**: Python Bindings (PyO3)
-- [ ] **Phase 5**: Optimization & Polish
-
-## 📄 License
-
-Apache-2.0
-
----
-
-*NAFS-4: Where cognition meets code evolution.*
+This project is licensed under the Apache License 2.0.
