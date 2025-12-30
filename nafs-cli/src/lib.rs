@@ -1,8 +1,6 @@
 //! NAFS-4 CLI Library
-//! 
+//!
 //! Provides command-line interface functionality.
-
-use nafs_core::Agent;
 
 /// CLI configuration
 pub struct CliConfig {

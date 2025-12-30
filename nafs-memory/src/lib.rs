@@ -7,9 +7,8 @@
 //! Abstracted behind traits to allow different backends.
 
 use async_trait::async_trait;
-use nafs_core::{MemoryCategory, MemoryItem, Result};
+use nafs_core::{MemoryItem, Result};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 /// Trait for vector database operations
 #[async_trait]
@@ -300,6 +299,7 @@ impl UnifiedMemory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nafs_core::MemoryCategory;
 
     #[tokio::test]
     async fn test_in_memory_vector_store() {

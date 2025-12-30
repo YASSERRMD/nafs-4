@@ -2,7 +2,6 @@
 //!
 //! Provides a comprehensive error type hierarchy for all NAFS-4 operations.
 
-use std::fmt;
 use thiserror::Error;
 
 /// Main error type for NAFS-4 operations
