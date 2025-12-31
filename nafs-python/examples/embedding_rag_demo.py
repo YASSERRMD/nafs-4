@@ -1,138 +1,96 @@
 #!/usr/bin/env python3
 """
-NAFS-4 Configurable Embedding Demo
+NAFS-4 Multi-Provider Embedding Demo
 
-Demonstrates:
-1. Setting the embedding model for the session
-2. Switching between different embedding models
-3. One-time model override vs session default
+Demonstrates configuring different LLM/Embedding providers.
 
-Supported Embedding Models:
-    
-    Cohere:
-        - embed-english-v3.0 (1024 dims) - Default
-        - embed-english-light-v3.0 (384 dims)  
-        - embed-multilingual-v3.0 (1024 dims)
-        - embed-multilingual-light-v3.0 (384 dims)
-    
-    OpenAI:
-        - text-embedding-3-small (1536 dims) - Default
-        - text-embedding-3-large (3072 dims)
-        - text-embedding-ada-002 (1536 dims)
+Supported Providers & Models:
 
-Prerequisites:
-    export COHERE_API_KEY=your_key   # For Cohere models
-    # OR
-    export OPENAI_API_KEY=your_key   # For OpenAI models
+┌─────────────────┬───────────────────────────────────────────────────┐
+│ Provider        │ Embedding Models                                  │
+├─────────────────┼───────────────────────────────────────────────────┤
+│ Cohere          │ embed-english-v3.0, embed-multilingual-v3.0      │
+│                 │ embed-english-light-v3.0, embed-multilingual-light│
+├─────────────────┼───────────────────────────────────────────────────┤
+│ OpenAI          │ text-embedding-3-small, text-embedding-3-large   │
+│                 │ text-embedding-ada-002                            │
+├─────────────────┼───────────────────────────────────────────────────┤
+│ HuggingFace     │ sentence-transformers/all-MiniLM-L6-v2           │
+│                 │ BAAI/bge-small-en-v1.5, intfloat/e5-base-v2       │
+├─────────────────┼───────────────────────────────────────────────────┤
+│ Ollama (local)  │ nomic-embed-text, mxbai-embed-large              │
+│                 │ all-minilm, snowflake-arctic-embed                │
+└─────────────────┴───────────────────────────────────────────────────┘
+
+Environment Variables (select ONE provider):
+    export HUGGINGFACE_API_KEY=your_key    # Use HuggingFace
+    export OLLAMA_URL=http://localhost:11434  # Use local Ollama
+    export COHERE_API_KEY=your_key         # Use Cohere
+    export OPENAI_API_KEY=your_key         # Use OpenAI
+    export ANTHROPIC_API_KEY=your_key      # Use Anthropic (no embeddings)
 """
 
 import asyncio
 import nafs
 import os
-import numpy as np
 
 async def main():
     print("=" * 70)
-    print("🔧 NAFS-4 Configurable Embedding Demo")
+    print("🔌 NAFS-4 Multi-Provider Demo")
     print("=" * 70)
     
-    # Initialize orchestrator
+    # Show provider selection rules
+    print("\n📋 Provider Selection Priority:")
+    print("   1. HUGGINGFACE_API_KEY → HuggingFace Inference API")
+    print("   2. OLLAMA_URL → Local Ollama")
+    print("   3. COHERE_API_KEY → Cohere")
+    print("   4. OPENAI_API_KEY → OpenAI")
+    print("   5. ANTHROPIC_API_KEY → Anthropic")
+    print("   6. (none) → Mock Provider")
+    
+    # Initialize
     orch = await nafs.Orchestrator.create()
     
-    # Get provider info
+    # Show active provider
     provider = orch.get_provider_name()
     models = orch.get_embedding_models()
     
-    print(f"\n📋 Provider: {provider}")
-    print(f"   Available Models: {', '.join(models)}")
+    print(f"\n🎯 Active Provider: {provider.upper()}")
+    print(f"   Available Embedding Models ({len(models)}):")
+    for m in models[:5]:
+        print(f"      • {m}")
+    if len(models) > 5:
+        print(f"      ... and {len(models) - 5} more")
     
-    if not models:
-        print("\n⚠️  No embedding models available.")
-        return
+    # Test embedding
+    test_text = "NAFS-4 is a cognitive architecture for AI agents."
     
-    test_text = "NAFS-4 is a cognitive architecture framework."
+    print(f"\n📝 Test Embedding:")
+    print(f'   Text: "{test_text}"')
     
-    # ─────────────────────────────────────────────────────────
-    # 1. Default model (provider's default)
-    # ─────────────────────────────────────────────────────────
-    print("\n" + "─" * 70)
-    print("1️⃣  Using Provider's Default Model")
-    print("─" * 70)
-    
-    current = await orch.get_embedding_model()
-    print(f"   Current session model: {current if current else '(provider default)'}")
+    # Default model
+    current_model = await orch.get_embedding_model()
+    print(f"\n   Session Model: {current_model if current_model else '(provider default)'}")
     
     embedding = await orch.embed(test_text)
     print(f"   Result: {len(embedding)} dimensions")
     
-    # ─────────────────────────────────────────────────────────
-    # 2. Set session default to a specific model
-    # ─────────────────────────────────────────────────────────
-    print("\n" + "─" * 70)
-    print("2️⃣  Setting Session Default Model")
-    print("─" * 70)
+    # Try different models
+    if len(models) >= 2:
+        print(f"\n🔄 Switching Models:")
+        for model in models[:3]:
+            try:
+                await orch.set_embedding_model(model)
+                emb = await orch.embed(test_text)
+                print(f"   ✅ {model:<40} → {len(emb):>5} dims")
+            except Exception as e:
+                print(f"   ❌ {model:<40} → {str(e)[:30]}")
     
-    # Pick a different model if available
-    if len(models) > 1:
-        new_model = models[1]  # Pick second model
-        print(f"   Setting session model to: {new_model}")
-        await orch.set_embedding_model(new_model)
-        
-        current = await orch.get_embedding_model()
-        print(f"   Current session model: {current}")
-        
-        embedding = await orch.embed(test_text)
-        print(f"   Result: {len(embedding)} dimensions")
-    else:
-        print("   (Only one model available, skipping)")
-    
-    # ─────────────────────────────────────────────────────────
-    # 3. One-time override (doesn't change session default)
-    # ─────────────────────────────────────────────────────────
-    print("\n" + "─" * 70)
-    print("3️⃣  One-Time Model Override")
-    print("─" * 70)
-    
-    override_model = models[0]  # Use first model as override
-    print(f"   Using one-time override: {override_model}")
-    
-    embedding = await orch.embed_with_model(test_text, override_model)
-    print(f"   Result: {len(embedding)} dimensions")
-    
-    # Verify session default is unchanged
-    current = await orch.get_embedding_model()
-    print(f"   Session model still: {current}")
-    
-    # ─────────────────────────────────────────────────────────
-    # 4. Reset to provider default
-    # ─────────────────────────────────────────────────────────
-    print("\n" + "─" * 70)
-    print("4️⃣  Reset to Provider Default")
-    print("─" * 70)
-    
+    # Reset to default
     await orch.set_embedding_model(None)
-    current = await orch.get_embedding_model()
-    print(f"   Session model: {current if current else '(provider default)'}")
-    
-    embedding = await orch.embed(test_text)
-    print(f"   Result: {len(embedding)} dimensions")
-    
-    # ─────────────────────────────────────────────────────────
-    # 5. Benchmark all models
-    # ─────────────────────────────────────────────────────────
-    print("\n" + "─" * 70)
-    print("5️⃣  Benchmark All Models")
-    print("─" * 70)
-    
-    for model in models:
-        try:
-            embedding = await orch.embed_with_model(test_text, model)
-            print(f"   ✅ {model:<35} → {len(embedding):>5} dims")
-        except Exception as e:
-            print(f"   ❌ {model:<35} → Error: {e}")
     
     print("\n" + "=" * 70)
-    print("✅ Configurable embedding demo completed!")
+    print("💡 To switch providers, set a different environment variable and restart.")
     print("=" * 70)
 
 if __name__ == "__main__":

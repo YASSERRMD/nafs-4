@@ -848,6 +848,286 @@ impl LLMProvider for MockLLMProvider {
     async fn health_check(&self) -> Result<bool> { Ok(true) }
 }
 
+// ==========================================
+// Hugging Face Inference API Provider
+// ==========================================
+
+#[derive(Clone, Debug)]
+pub struct HuggingFaceConfig {
+    pub api_key: String,
+    pub model: String,
+    pub embedding_model: String,
+}
+
+impl HuggingFaceConfig {
+    pub fn new(api_key: impl Into<String>) -> Self {
+        Self { 
+            api_key: api_key.into(),
+            model: "mistralai/Mistral-7B-Instruct-v0.2".to_string(),
+            embedding_model: "sentence-transformers/all-MiniLM-L6-v2".to_string(),
+        }
+    }
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = model.into();
+        self
+    }
+    pub fn with_embedding_model(mut self, model: impl Into<String>) -> Self {
+        self.embedding_model = model.into();
+        self
+    }
+}
+
+pub struct HuggingFaceProvider {
+    config: HuggingFaceConfig,
+    client: reqwest::Client,
+}
+
+impl HuggingFaceProvider {
+    pub fn new(config: HuggingFaceConfig) -> Self {
+        Self { config, client: reqwest::Client::new() }
+    }
+}
+
+#[async_trait]
+impl LLMProvider for HuggingFaceProvider {
+    fn name(&self) -> &str { "huggingface" }
+    
+    fn available_models(&self) -> Vec<String> {
+        vec![
+            "mistralai/Mistral-7B-Instruct-v0.2".to_string(),
+            "meta-llama/Llama-2-7b-chat-hf".to_string(),
+            "google/flan-t5-xxl".to_string(),
+            "bigscience/bloom".to_string(),
+        ]
+    }
+
+    fn available_embedding_models(&self) -> Vec<String> {
+        vec![
+            "sentence-transformers/all-MiniLM-L6-v2".to_string(),
+            "sentence-transformers/all-mpnet-base-v2".to_string(),
+            "BAAI/bge-small-en-v1.5".to_string(),
+            "BAAI/bge-base-en-v1.5".to_string(),
+            "BAAI/bge-large-en-v1.5".to_string(),
+            "intfloat/e5-small-v2".to_string(),
+            "intfloat/e5-base-v2".to_string(),
+            "intfloat/e5-large-v2".to_string(),
+        ]
+    }
+
+    async fn chat(&self, messages: &[ChatMessage], config: &ChatConfig) -> Result<ChatResponse> {
+        let url = format!("https://api-inference.huggingface.co/models/{}", config.model);
+        
+        // Format messages for instruction-following models
+        let prompt = messages.iter()
+            .map(|m| format!("{}: {}", 
+                if m.role == MessageRole::User { "User" } else { "Assistant" },
+                m.content
+            ))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let body = json!({
+            "inputs": prompt,
+            "parameters": {
+                "max_new_tokens": if config.max_tokens > 0 { config.max_tokens } else { 500 },
+                "temperature": config.temperature,
+                "return_full_text": false
+            }
+        });
+
+        let resp = self.client.post(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("HuggingFace request failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("HuggingFace error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let content = data.get(0)
+            .and_then(|v| v["generated_text"].as_str())
+            .unwrap_or_default()
+            .to_string();
+        
+        Ok(ChatResponse { content, finish_reason: FinishReason::Stop, usage: Default::default() })
+    }
+
+    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed_with_model(text, &self.config.embedding_model).await
+    }
+
+    async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
+        let url = format!("https://api-inference.huggingface.co/pipeline/feature-extraction/{}", model);
+        
+        let body = json!({
+            "inputs": text,
+            "options": { "wait_for_model": true }
+        });
+
+        let resp = self.client.post(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("HuggingFace embed failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("HuggingFace embed error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        
+        // HF returns nested array for sentence-transformers
+        let embedding: Vec<f32> = if let Some(arr) = data.as_array() {
+            arr.iter().map(|v| v.as_f64().unwrap_or(0.0) as f32).collect()
+        } else {
+            return Err(NafsError::llm("Invalid HuggingFace embedding response"));
+        };
+        
+        Ok(embedding)
+    }
+
+    async fn health_check(&self) -> Result<bool> { Ok(true) }
+}
+
+// ==========================================
+// Enhanced Ollama Provider with Embeddings
+// ==========================================
+
+#[derive(Clone, Debug)]
+pub struct OllamaConfig {
+    pub base_url: String,
+    pub model: String,
+    pub embedding_model: String,
+}
+
+impl OllamaConfig {
+    pub fn new(base_url: impl Into<String>) -> Self {
+        Self {
+            base_url: base_url.into(),
+            model: "llama3".to_string(),
+            embedding_model: "nomic-embed-text".to_string(),
+        }
+    }
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = model.into();
+        self
+    }
+    pub fn with_embedding_model(mut self, model: impl Into<String>) -> Self {
+        self.embedding_model = model.into();
+        self
+    }
+}
+
+pub struct OllamaEmbedProvider {
+    config: OllamaConfig,
+    client: reqwest::Client,
+}
+
+impl OllamaEmbedProvider {
+    pub fn new(config: OllamaConfig) -> Self {
+        Self { config, client: reqwest::Client::new() }
+    }
+}
+
+#[async_trait]
+impl LLMProvider for OllamaEmbedProvider {
+    fn name(&self) -> &str { "ollama" }
+    
+    fn available_models(&self) -> Vec<String> {
+        vec![
+            "llama3".to_string(),
+            "llama3.1".to_string(),
+            "mistral".to_string(),
+            "mixtral".to_string(),
+            "codellama".to_string(),
+            "phi".to_string(),
+        ]
+    }
+
+    fn available_embedding_models(&self) -> Vec<String> {
+        vec![
+            "nomic-embed-text".to_string(),
+            "mxbai-embed-large".to_string(),
+            "all-minilm".to_string(),
+            "snowflake-arctic-embed".to_string(),
+        ]
+    }
+
+    async fn chat(&self, messages: &[ChatMessage], config: &ChatConfig) -> Result<ChatResponse> {
+        let url = format!("{}/api/chat", self.config.base_url.trim_end_matches('/'));
+        
+        let msgs: Vec<serde_json::Value> = messages.iter().map(|m| {
+            json!({
+                "role": match m.role {
+                    MessageRole::System => "system",
+                    MessageRole::User => "user",
+                    MessageRole::Assistant => "assistant",
+                },
+                "content": m.content
+            })
+        }).collect();
+
+        let body = json!({
+            "model": config.model,
+            "messages": msgs,
+            "stream": false
+        });
+
+        let resp = self.client.post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Ollama request failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Ollama error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let content = data["message"]["content"].as_str().unwrap_or_default().to_string();
+        
+        Ok(ChatResponse { content, finish_reason: FinishReason::Stop, usage: Default::default() })
+    }
+
+    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed_with_model(text, &self.config.embedding_model).await
+    }
+
+    async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
+        let url = format!("{}/api/embeddings", self.config.base_url.trim_end_matches('/'));
+        
+        let body = json!({
+            "model": model,
+            "prompt": text
+        });
+
+        let resp = self.client.post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Ollama embed failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Ollama embed error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let embedding = data["embedding"].as_array()
+            .ok_or_else(|| NafsError::llm("Invalid Ollama embedding response"))?
+            .iter()
+            .map(|v| v.as_f64().unwrap_or(0.0) as f32)
+            .collect();
+        
+        Ok(embedding)
+    }
+
+    async fn health_check(&self) -> Result<bool> { Ok(true) }
+}
+
 pub struct ProviderChain {
     providers: Vec<Box<dyn LLMProvider>>,
 }

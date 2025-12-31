@@ -64,8 +64,14 @@ impl NafsOrchestrator {
         let event_bus = Arc::new(EventBus::new());
         let health_monitor = Arc::new(HealthMonitor::new());
 
-        // Initialize LLM Provider based on env vars
-        let llm_provider: Arc<dyn LLMProvider> = if let Ok(key) = std::env::var("COHERE_API_KEY") {
+        // Initialize LLM Provider based on env vars (priority order)
+        let llm_provider: Arc<dyn LLMProvider> = if let Ok(key) = std::env::var("HUGGINGFACE_API_KEY") {
+            tracing::info!("Using HuggingFace LLM Provider");
+            Arc::new(nafs_llm::HuggingFaceProvider::new(nafs_llm::HuggingFaceConfig::new(key)))
+        } else if let Ok(base_url) = std::env::var("OLLAMA_URL") {
+            tracing::info!("Using Ollama LLM Provider at {}", base_url);
+            Arc::new(nafs_llm::OllamaEmbedProvider::new(nafs_llm::OllamaConfig::new(base_url)))
+        } else if let Ok(key) = std::env::var("COHERE_API_KEY") {
             tracing::info!("Using Cohere LLM Provider");
             Arc::new(CohereProvider::new(CohereConfig::new(key)))
         } else if let Ok(key) = std::env::var("OPENAI_API_KEY") {
