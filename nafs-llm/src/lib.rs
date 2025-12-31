@@ -548,7 +548,36 @@ impl LLMProvider for CohereProvider {
         let content = data["text"].as_str().unwrap_or_default().to_string();
         Ok(ChatResponse { content, finish_reason: FinishReason::Stop, usage: Default::default() })
     }
-    async fn embed(&self, _text: &str) -> Result<Vec<f32>> { Ok(vec![0.0]) }
+    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        let url = "https://api.cohere.ai/v1/embed";
+        
+        let body = json!({
+            "texts": [text],
+            "model": "embed-english-v3.0",
+            "input_type": "search_document",
+            "truncate": "END"
+        });
+
+        let resp = self.client.post(url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Cohere embed failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Cohere embed error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let embedding = data["embeddings"][0].as_array()
+            .ok_or_else(|| NafsError::llm("Invalid Cohere embedding response"))?
+            .iter()
+            .map(|v| v.as_f64().unwrap_or(0.0) as f32)
+            .collect();
+        
+        Ok(embedding)
+    }
     async fn health_check(&self) -> Result<bool> { Ok(true) }
 }
 

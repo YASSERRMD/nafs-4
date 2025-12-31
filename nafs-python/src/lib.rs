@@ -83,6 +83,16 @@ impl Orchestrator {
             Ok(status.is_healthy)
         })
     }
+
+    /// Generate embeddings for the given text using the configured LLM provider
+    fn embed<'a>(&self, py: Python<'a>, text: String) -> PyResult<&'a PyAny> {
+        let orch = self.inner.clone();
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            let embedding = orch.llm_provider.embed(&text).await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(embedding)
+        })
+    }
 }
 
 #[pymodule]
