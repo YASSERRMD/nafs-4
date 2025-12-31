@@ -23,10 +23,9 @@ The central coordination layer that routes requests, manages agent lifecycles, a
 
 ## Supported LLM Providers
 
-NAFS-4 includes native support for a wide range of global and regional LLM providers:
+NAFS-4 includes native support for a wide range of LLM providers:
 - **Major Platforms:** OpenAI, Anthropic (Claude), Google (Gemini), Azure OpenAI
-- **Specialized:** Mistral AI, Cohere
-- **Chinese Providers:** DeepSeek, Alibaba Cloud Qwen, Zhipu AI (ChatGLM), 01.AI (Yi)
+- **Specialized:** Mistral AI, Cohere, DeepSeek, Qwen, Zhipu AI, 01.AI (Yi)
 - **Local/Private:** Ollama, LocalAI, and any OpenAI-compatible endpoint
 
 ## Memory & Storage
