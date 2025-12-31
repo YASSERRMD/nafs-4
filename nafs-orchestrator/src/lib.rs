@@ -24,6 +24,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+/// Embedding configuration for the session
+pub struct EmbeddingConfig {
+    pub model: Option<String>,
+}
+
+impl Default for EmbeddingConfig {
+    fn default() -> Self {
+        Self { model: None }
+    }
+}
+
 /// Main orchestrator
 pub struct NafsOrchestrator {
     /// Configuration
@@ -40,6 +51,8 @@ pub struct NafsOrchestrator {
     pub llm_provider: Arc<dyn LLMProvider>,
     /// Unified memory system
     pub memory: Arc<UnifiedMemory>,
+    /// Session embedding configuration
+    pub embedding_config: RwLock<EmbeddingConfig>,
 }
 
 impl NafsOrchestrator {
@@ -86,7 +99,34 @@ impl NafsOrchestrator {
             health_monitor,
             llm_provider,
             memory,
+            embedding_config: RwLock::new(EmbeddingConfig::default()),
         })
+    }
+
+    /// Set the default embedding model for this session
+    pub async fn set_embedding_model(&self, model: Option<String>) {
+        let mut config = self.embedding_config.write().await;
+        config.model = model;
+    }
+
+    /// Get the current default embedding model
+    pub async fn get_embedding_model(&self) -> Option<String> {
+        let config = self.embedding_config.read().await;
+        config.model.clone()
+    }
+
+    /// Generate embedding using the session's configured model
+    pub async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        let config = self.embedding_config.read().await;
+        match &config.model {
+            Some(model) => self.llm_provider.embed_with_model(text, model).await,
+            None => self.llm_provider.embed(text).await,
+        }
+    }
+
+    /// Generate embedding with a specific model (one-time override)
+    pub async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
+        self.llm_provider.embed_with_model(text, model).await
     }
 
     /// Create a new agent

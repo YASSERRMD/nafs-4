@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-NAFS-4 Multi-Model Embedding Demo
+NAFS-4 Configurable Embedding Demo
 
 Demonstrates:
-1. Querying available embedding models from the provider
-2. Generating embeddings with different models
-3. Comparing embedding dimensions across models
+1. Setting the embedding model for the session
+2. Switching between different embedding models
+3. One-time model override vs session default
 
 Supported Embedding Models:
     
     Cohere:
-        - embed-english-v3.0 (1024 dims)
+        - embed-english-v3.0 (1024 dims) - Default
         - embed-english-light-v3.0 (384 dims)  
         - embed-multilingual-v3.0 (1024 dims)
         - embed-multilingual-light-v3.0 (384 dims)
     
     OpenAI:
-        - text-embedding-3-small (1536 dims)
+        - text-embedding-3-small (1536 dims) - Default
         - text-embedding-3-large (3072 dims)
         - text-embedding-ada-002 (1536 dims)
 
@@ -32,77 +32,108 @@ import os
 import numpy as np
 
 async def main():
-    print("=" * 65)
-    print("🧠 NAFS-4 Multi-Model Embedding Demo")
-    print("=" * 65)
+    print("=" * 70)
+    print("🔧 NAFS-4 Configurable Embedding Demo")
+    print("=" * 70)
     
-    # Initialize
+    # Initialize orchestrator
     orch = await nafs.Orchestrator.create()
     
     # Get provider info
     provider = orch.get_provider_name()
     models = orch.get_embedding_models()
     
-    print(f"\n📋 Configuration:")
-    print(f"   LLM Provider: {provider}")
-    print(f"   Available Embedding Models:")
-    for model in models:
-        print(f"      • {model}")
+    print(f"\n📋 Provider: {provider}")
+    print(f"   Available Models: {', '.join(models)}")
     
     if not models:
-        print("\n⚠️  No embedding models available for this provider.")
+        print("\n⚠️  No embedding models available.")
         return
     
-    # Test text
-    test_text = "NAFS-4 is a cognitive architecture framework implementing four distinct systems."
+    test_text = "NAFS-4 is a cognitive architecture framework."
     
-    print(f"\n📝 Test Text:")
-    print(f'   "{test_text}"')
+    # ─────────────────────────────────────────────────────────
+    # 1. Default model (provider's default)
+    # ─────────────────────────────────────────────────────────
+    print("\n" + "─" * 70)
+    print("1️⃣  Using Provider's Default Model")
+    print("─" * 70)
     
-    # Generate embeddings with each available model
-    print("\n📊 Embedding Results:")
-    print("-" * 65)
+    current = await orch.get_embedding_model()
+    print(f"   Current session model: {current if current else '(provider default)'}")
     
-    results = []
+    embedding = await orch.embed(test_text)
+    print(f"   Result: {len(embedding)} dimensions")
+    
+    # ─────────────────────────────────────────────────────────
+    # 2. Set session default to a specific model
+    # ─────────────────────────────────────────────────────────
+    print("\n" + "─" * 70)
+    print("2️⃣  Setting Session Default Model")
+    print("─" * 70)
+    
+    # Pick a different model if available
+    if len(models) > 1:
+        new_model = models[1]  # Pick second model
+        print(f"   Setting session model to: {new_model}")
+        await orch.set_embedding_model(new_model)
+        
+        current = await orch.get_embedding_model()
+        print(f"   Current session model: {current}")
+        
+        embedding = await orch.embed(test_text)
+        print(f"   Result: {len(embedding)} dimensions")
+    else:
+        print("   (Only one model available, skipping)")
+    
+    # ─────────────────────────────────────────────────────────
+    # 3. One-time override (doesn't change session default)
+    # ─────────────────────────────────────────────────────────
+    print("\n" + "─" * 70)
+    print("3️⃣  One-Time Model Override")
+    print("─" * 70)
+    
+    override_model = models[0]  # Use first model as override
+    print(f"   Using one-time override: {override_model}")
+    
+    embedding = await orch.embed_with_model(test_text, override_model)
+    print(f"   Result: {len(embedding)} dimensions")
+    
+    # Verify session default is unchanged
+    current = await orch.get_embedding_model()
+    print(f"   Session model still: {current}")
+    
+    # ─────────────────────────────────────────────────────────
+    # 4. Reset to provider default
+    # ─────────────────────────────────────────────────────────
+    print("\n" + "─" * 70)
+    print("4️⃣  Reset to Provider Default")
+    print("─" * 70)
+    
+    await orch.set_embedding_model(None)
+    current = await orch.get_embedding_model()
+    print(f"   Session model: {current if current else '(provider default)'}")
+    
+    embedding = await orch.embed(test_text)
+    print(f"   Result: {len(embedding)} dimensions")
+    
+    # ─────────────────────────────────────────────────────────
+    # 5. Benchmark all models
+    # ─────────────────────────────────────────────────────────
+    print("\n" + "─" * 70)
+    print("5️⃣  Benchmark All Models")
+    print("─" * 70)
     
     for model in models:
         try:
-            print(f"\n   Model: {model}")
             embedding = await orch.embed_with_model(test_text, model)
-            dim = len(embedding)
-            norm = np.linalg.norm(embedding)
-            results.append((model, dim, norm, embedding))
-            print(f"      ✅ Dimensions: {dim}, L2 Norm: {norm:.4f}")
+            print(f"   ✅ {model:<35} → {len(embedding):>5} dims")
         except Exception as e:
-            print(f"      ❌ Error: {e}")
+            print(f"   ❌ {model:<35} → Error: {e}")
     
-    # Compare embeddings if we have multiple
-    if len(results) >= 2:
-        print("\n🔍 Model Comparison (Cosine Similarity):")
-        print("-" * 65)
-        
-        def cosine_sim(a, b):
-            # Handle different dimensions by padding
-            if len(a) != len(b):
-                return float('nan')
-            return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
-        
-        for i, (m1, d1, _, e1) in enumerate(results):
-            for m2, d2, _, e2 in results[i+1:]:
-                sim = cosine_sim(e1, e2)
-                if np.isnan(sim):
-                    print(f"   {m1[:25]:<25} vs {m2[:25]:<25}: N/A (different dims: {d1} vs {d2})")
-                else:
-                    print(f"   {m1[:25]:<25} vs {m2[:25]:<25}: {sim:.4f}")
-    
-    # Show default model usage
-    print("\n� Default Model Usage:")
-    print("-" * 65)
-    default_embedding = await orch.embed(test_text)
-    print(f"   orch.embed(text) → {len(default_embedding)} dimensions")
-    print(f"   (Uses provider's default model)")
-    
-    print("\n✅ Multi-model embedding demo completed!")
+    print("\n" + "=" * 70)
+    print("✅ Configurable embedding demo completed!")
+    print("=" * 70)
 
 if __name__ == "__main__":
     asyncio.run(main())

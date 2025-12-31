@@ -84,22 +84,41 @@ impl Orchestrator {
         })
     }
 
-    /// Generate embeddings using the default model for the configured provider
+    /// Set the default embedding model for this session
+    /// Pass None to reset to provider's default
+    #[pyo3(signature = (model=None))]
+    fn set_embedding_model<'a>(&self, py: Python<'a>, model: Option<String>) -> PyResult<&'a PyAny> {
+        let orch = self.inner.clone();
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            orch.set_embedding_model(model).await;
+            Ok(())
+        })
+    }
+
+    /// Get the current default embedding model (None means using provider default)
+    fn get_embedding_model<'a>(&self, py: Python<'a>) -> PyResult<&'a PyAny> {
+        let orch = self.inner.clone();
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            Ok(orch.get_embedding_model().await)
+        })
+    }
+
+    /// Generate embeddings using the session's configured model
     fn embed<'a>(&self, py: Python<'a>, text: String) -> PyResult<&'a PyAny> {
         let orch = self.inner.clone();
         pyo3_asyncio::tokio::future_into_py(py, async move {
-            let embedding = orch.llm_provider.embed(&text).await
+            let embedding = orch.embed(&text).await
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
             Ok(embedding)
         })
     }
 
-    /// Generate embeddings using a specific model
+    /// Generate embeddings using a specific model (one-time override)
     #[pyo3(signature = (text, model))]
     fn embed_with_model<'a>(&self, py: Python<'a>, text: String, model: String) -> PyResult<&'a PyAny> {
         let orch = self.inner.clone();
         pyo3_asyncio::tokio::future_into_py(py, async move {
-            let embedding = orch.llm_provider.embed_with_model(&text, &model).await
+            let embedding = orch.embed_with_model(&text, &model).await
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
             Ok(embedding)
         })
