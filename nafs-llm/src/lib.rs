@@ -120,8 +120,13 @@ pub struct TokenUsage {
 pub trait LLMProvider: Send + Sync {
     fn name(&self) -> &str;
     fn available_models(&self) -> Vec<String>;
+    fn available_embedding_models(&self) -> Vec<String> { vec![] }
     async fn chat(&self, messages: &[ChatMessage], config: &ChatConfig) -> Result<ChatResponse>;
     async fn embed(&self, text: &str) -> Result<Vec<f32>>;
+    async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
+        let _ = model; // Default implementation ignores model parameter
+        self.embed(text).await
+    }
     async fn health_check(&self) -> Result<bool>;
 }
 
@@ -234,8 +239,12 @@ impl LLMProvider for OpenAIProvider {
     }
 
     async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed_with_model(text, "text-embedding-3-small").await
+    }
+
+    async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
         let url = format!("{}/embeddings", self.config.base_url.trim_end_matches('/'));
-        let body = json!({ "model": "text-embedding-ada-002", "input": text });
+        let body = json!({ "model": model, "input": text });
 
         let resp = self.client.post(&url)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
@@ -253,6 +262,14 @@ impl LLMProvider for OpenAIProvider {
             .ok_or_else(|| NafsError::llm("Invalid embedding"))?
             .iter().map(|v| v.as_f64().unwrap_or(0.0) as f32).collect();
         Ok(embedding)
+    }
+
+    fn available_embedding_models(&self) -> Vec<String> {
+        vec![
+            "text-embedding-3-small".to_string(),
+            "text-embedding-3-large".to_string(),
+            "text-embedding-ada-002".to_string(),
+        ]
     }
 
     async fn health_check(&self) -> Result<bool> { Ok(true) }
@@ -549,11 +566,15 @@ impl LLMProvider for CohereProvider {
         Ok(ChatResponse { content, finish_reason: FinishReason::Stop, usage: Default::default() })
     }
     async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed_with_model(text, "embed-english-v3.0").await
+    }
+
+    async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
         let url = "https://api.cohere.ai/v1/embed";
         
         let body = json!({
             "texts": [text],
-            "model": "embed-english-v3.0",
+            "model": model,
             "input_type": "search_document",
             "truncate": "END"
         });
@@ -578,6 +599,16 @@ impl LLMProvider for CohereProvider {
         
         Ok(embedding)
     }
+
+    fn available_embedding_models(&self) -> Vec<String> {
+        vec![
+            "embed-english-v3.0".to_string(),
+            "embed-english-light-v3.0".to_string(),
+            "embed-multilingual-v3.0".to_string(),
+            "embed-multilingual-light-v3.0".to_string(),
+        ]
+    }
+
     async fn health_check(&self) -> Result<bool> { Ok(true) }
 }
 

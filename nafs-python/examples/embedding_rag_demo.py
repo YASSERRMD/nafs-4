@@ -1,18 +1,29 @@
 #!/usr/bin/env python3
 """
-NAFS-4 Embedding + Barq-DB RAG Demo
+NAFS-4 Multi-Model Embedding Demo
 
 Demonstrates:
-1. Generating embeddings using Cohere's embed-english-v3.0 model
-2. Storing vectors in Barq-DB (if running)
-3. Performing semantic search for RAG
+1. Querying available embedding models from the provider
+2. Generating embeddings with different models
+3. Comparing embedding dimensions across models
+
+Supported Embedding Models:
+    
+    Cohere:
+        - embed-english-v3.0 (1024 dims)
+        - embed-english-light-v3.0 (384 dims)  
+        - embed-multilingual-v3.0 (1024 dims)
+        - embed-multilingual-light-v3.0 (384 dims)
+    
+    OpenAI:
+        - text-embedding-3-small (1536 dims)
+        - text-embedding-3-large (3072 dims)
+        - text-embedding-ada-002 (1536 dims)
 
 Prerequisites:
-    export COHERE_API_KEY=your_key
-    export BARQ_DB_ADDR=http://localhost:50051  # Optional
-
-Usage:
-    python embedding_rag_demo.py
+    export COHERE_API_KEY=your_key   # For Cohere models
+    # OR
+    export OPENAI_API_KEY=your_key   # For OpenAI models
 """
 
 import asyncio
@@ -21,91 +32,77 @@ import os
 import numpy as np
 
 async def main():
-    print("=" * 60)
-    print("🧠 NAFS-4 Embedding & RAG Demo")
-    print("=" * 60)
-    
-    # Check configuration
-    has_cohere = "COHERE_API_KEY" in os.environ
-    barq_addr = os.environ.get("BARQ_DB_ADDR", "")
-    
-    print(f"\n📋 Configuration:")
-    print(f"   Embedding Provider: {'Cohere (embed-english-v3.0)' if has_cohere else 'Mock'}")
-    print(f"   Vector Store: {barq_addr or 'In-Memory'}")
-    
-    if not has_cohere:
-        print("\n⚠️  Set COHERE_API_KEY for real embeddings")
-        return
+    print("=" * 65)
+    print("🧠 NAFS-4 Multi-Model Embedding Demo")
+    print("=" * 65)
     
     # Initialize
-    print("\n🔧 Initializing NAFS-4...")
     orch = await nafs.Orchestrator.create()
-    print("   ✅ Ready")
     
-    # Sample documents to embed
-    documents = [
-        "Barq-DB is a high-performance vector database written in Rust.",
-        "NAFS-4 implements a cognitive architecture with four systems.",
-        "Embeddings represent text as dense numerical vectors.",
-        "RAG combines retrieval with generation for better answers.",
-        "Cohere provides state-of-the-art embedding models."
-    ]
+    # Get provider info
+    provider = orch.get_provider_name()
+    models = orch.get_embedding_models()
     
-    # Generate embeddings
-    print("\n📊 Generating Embeddings:")
-    print("-" * 50)
-    embeddings = []
+    print(f"\n📋 Configuration:")
+    print(f"   LLM Provider: {provider}")
+    print(f"   Available Embedding Models:")
+    for model in models:
+        print(f"      • {model}")
     
-    for i, doc in enumerate(documents, 1):
-        print(f"   [{i}/{len(documents)}] {doc[:50]}...")
-        embedding = await orch.embed(doc)
-        embeddings.append(embedding)
-        print(f"           → Vector dim: {len(embedding)}, L2 norm: {np.linalg.norm(embedding):.4f}")
+    if not models:
+        print("\n⚠️  No embedding models available for this provider.")
+        return
     
-    # Demonstrate semantic similarity
-    print("\n🔍 Semantic Similarity Search:")
-    print("-" * 50)
+    # Test text
+    test_text = "NAFS-4 is a cognitive architecture framework implementing four distinct systems."
     
-    query = "What is a vector database?"
-    print(f"   Query: \"{query}\"")
-    query_embedding = await orch.embed(query)
-    print(f"   Query vector dim: {len(query_embedding)}")
+    print(f"\n📝 Test Text:")
+    print(f'   "{test_text}"')
     
-    # Compute cosine similarities
-    def cosine_similarity(a, b):
-        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+    # Generate embeddings with each available model
+    print("\n📊 Embedding Results:")
+    print("-" * 65)
     
-    print("\n   Similarity Scores:")
-    similarities = []
-    for doc, emb in zip(documents, embeddings):
-        sim = cosine_similarity(query_embedding, emb)
-        similarities.append((sim, doc))
-        print(f"   {sim:.4f} | {doc[:60]}...")
+    results = []
     
-    # Rank by similarity
-    similarities.sort(reverse=True)
-    print("\n   🏆 Top Match:")
-    print(f"   {similarities[0][0]:.4f} | {similarities[0][1]}")
+    for model in models:
+        try:
+            print(f"\n   Model: {model}")
+            embedding = await orch.embed_with_model(test_text, model)
+            dim = len(embedding)
+            norm = np.linalg.norm(embedding)
+            results.append((model, dim, norm, embedding))
+            print(f"      ✅ Dimensions: {dim}, L2 Norm: {norm:.4f}")
+        except Exception as e:
+            print(f"      ❌ Error: {e}")
     
-    # Use top result for RAG
-    print("\n📝 RAG Generation:")
-    print("-" * 50)
+    # Compare embeddings if we have multiple
+    if len(results) >= 2:
+        print("\n🔍 Model Comparison (Cosine Similarity):")
+        print("-" * 65)
+        
+        def cosine_sim(a, b):
+            # Handle different dimensions by padding
+            if len(a) != len(b):
+                return float('nan')
+            return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+        
+        for i, (m1, d1, _, e1) in enumerate(results):
+            for m2, d2, _, e2 in results[i+1:]:
+                sim = cosine_sim(e1, e2)
+                if np.isnan(sim):
+                    print(f"   {m1[:25]:<25} vs {m2[:25]:<25}: N/A (different dims: {d1} vs {d2})")
+                else:
+                    print(f"   {m1[:25]:<25} vs {m2[:25]:<25}: {sim:.4f}")
     
-    rag_agent = await orch.create_agent("RAG_Bot", "Answer Synthesis Expert")
-    augmented_prompt = f"""
-    User Question: {query}
+    # Show default model usage
+    print("\n� Default Model Usage:")
+    print("-" * 65)
+    default_embedding = await orch.embed(test_text)
+    print(f"   orch.embed(text) → {len(default_embedding)} dimensions")
+    print(f"   (Uses provider's default model)")
     
-    Retrieved Context (most relevant):
-    {similarities[0][1]}
-    
-    Based on the context, provide a concise answer.
-    """
-    
-    response = await orch.query(rag_agent, augmented_prompt)
-    print(f"   Answer: {response.result}")
-    print(f"   ⏱️  Latency: {response.execution_time_ms}ms")
-    
-    print("\n✅ Demo completed successfully!")
+    print("\n✅ Multi-model embedding demo completed!")
 
 if __name__ == "__main__":
     asyncio.run(main())

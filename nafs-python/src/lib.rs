@@ -84,7 +84,7 @@ impl Orchestrator {
         })
     }
 
-    /// Generate embeddings for the given text using the configured LLM provider
+    /// Generate embeddings using the default model for the configured provider
     fn embed<'a>(&self, py: Python<'a>, text: String) -> PyResult<&'a PyAny> {
         let orch = self.inner.clone();
         pyo3_asyncio::tokio::future_into_py(py, async move {
@@ -92,6 +92,27 @@ impl Orchestrator {
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
             Ok(embedding)
         })
+    }
+
+    /// Generate embeddings using a specific model
+    #[pyo3(signature = (text, model))]
+    fn embed_with_model<'a>(&self, py: Python<'a>, text: String, model: String) -> PyResult<&'a PyAny> {
+        let orch = self.inner.clone();
+        pyo3_asyncio::tokio::future_into_py(py, async move {
+            let embedding = orch.llm_provider.embed_with_model(&text, &model).await
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(embedding)
+        })
+    }
+
+    /// Get the name of the current LLM provider
+    fn get_provider_name(&self) -> String {
+        self.inner.llm_provider.name().to_string()
+    }
+
+    /// Get available embedding models for the current provider
+    fn get_embedding_models(&self) -> Vec<String> {
+        self.inner.llm_provider.available_embedding_models()
     }
 }
 
