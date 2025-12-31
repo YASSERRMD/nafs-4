@@ -1,8 +1,17 @@
-# NAFS-4: Neuromorphic AI Framework System
+<p align="center">
+  <img src="assets/logo.png" alt="NAFS-4 Logo" width="200"/>
+</p>
 
-A production-grade, self-evolving cognitive architecture framework with native Python bindings. Build autonomous AI agents with fast perception, deliberate reasoning, meta-cognition, and self-evolution.
+<h1 align="center">NAFS-4: Neuromorphic AI Framework System</h1>
 
-## 🚀 Quick Start (Python)
+<p align="center">
+A production-grade, self-evolving cognitive architecture framework with native Python bindings.<br/>
+Build autonomous AI agents with fast perception, deliberate reasoning, meta-cognition, and self-evolution.
+</p>
+
+---
+
+## Quick Start (Python)
 
 ### Installation
 
@@ -52,7 +61,7 @@ export OLLAMA_URL=http://localhost:11434  # Local Ollama
 
 ---
 
-## 📚 Python Examples
+## Python Examples
 
 | Example | Description |
 |---------|-------------|
@@ -63,7 +72,7 @@ export OLLAMA_URL=http://localhost:11434  # Local Ollama
 | [self_evolving_tutor.py](nafs-python/examples/self_evolving_tutor.py) | Agent evolution demonstration |
 | [embedding_rag_demo.py](nafs-python/examples/embedding_rag_demo.py) | Multi-provider embedding demo |
 | [knowledge_graph_demo.py](nafs-python/examples/knowledge_graph_demo.py) | Graph-enhanced RAG with Barq-GraphDB |
-| [complete_research_pipeline.py](nafs-python/examples/complete_research_pipeline.py) | **Full showcase** - All features |
+| [complete_research_pipeline.py](nafs-python/examples/complete_research_pipeline.py) | Full showcase - All features |
 
 Run any example:
 ```bash
@@ -73,7 +82,7 @@ python nafs-python/examples/simple_agent.py
 
 ---
 
-## 🔌 Supported Providers
+## Supported Providers
 
 ### LLM + Embeddings
 | Provider | LLM Models | Embedding Models |
@@ -99,7 +108,7 @@ python nafs-python/examples/simple_agent.py
 
 ---
 
-## 🧠 Embedding API
+## Embedding API
 
 ```python
 # Get available models
@@ -121,7 +130,7 @@ await orch.set_embedding_model(None)
 
 ---
 
-## 🗄️ Memory & Storage
+## Memory and Storage
 
 NAFS-4 integrates with external databases for persistent memory:
 
@@ -138,25 +147,25 @@ export BARQ_GRAPH_ADDR=http://localhost:8081
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 NAFS-4 implements a 4-system cognitive architecture:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    ORCHESTRATOR                         │
-├─────────────┬─────────────┬─────────────┬──────────────┤
-│  System 1   │  System 2   │  System 3   │  System 4    │
-│  Perception │  Reasoning  │  Memory     │  Evolution   │
-│  (Fast)     │  (ToT/CoT)  │  (Episodic) │  (Learning)  │
-└─────────────┴─────────────┴─────────────┴──────────────┘
-                          │
-            ┌─────────────┴─────────────┐
-            │   Unified Memory Layer    │
-            ├───────────┬───────────────┤
-            │  Barq-DB  │ Barq-GraphDB  │
-            │  (Vector) │   (Graph)     │
-            └───────────┴───────────────┘
++-----------------------------------------------------------+
+|                       ORCHESTRATOR                        |
++---------------+---------------+---------------+-----------+
+|   System 1    |   System 2    |   System 3    | System 4  |
+|  Perception   |   Reasoning   |    Memory     | Evolution |
+|    (Fast)     |   (ToT/CoT)   |  (Episodic)   | (Learning)|
++---------------+---------------+---------------+-----------+
+                              |
+              +---------------+----------------+
+              |      Unified Memory Layer      |
+              +---------------+----------------+
+              |   Barq-DB     |  Barq-GraphDB  |
+              |   (Vector)    |    (Graph)     |
+              +---------------+----------------+
 ```
 
 - **System 1**: Fast pattern matching and heuristic responses
@@ -166,7 +175,7 @@ NAFS-4 implements a 4-system cognitive architecture:
 
 ---
 
-## 🔧 Rust Development
+## Rust Development
 
 For Rust developers building from source:
 
@@ -199,6 +208,6 @@ cargo run --release -p nafs-server
 
 ---
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
