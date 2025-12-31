@@ -65,7 +65,22 @@ impl NafsOrchestrator {
         let health_monitor = Arc::new(HealthMonitor::new());
 
         // Initialize LLM Provider based on env vars (priority order)
-        let llm_provider: Arc<dyn LLMProvider> = if let Ok(key) = std::env::var("HUGGINGFACE_API_KEY") {
+        let llm_provider: Arc<dyn LLMProvider> = if let Ok(key) = std::env::var("TOGETHER_API_KEY") {
+            tracing::info!("Using Together.ai LLM Provider");
+            Arc::new(nafs_llm::TogetherProvider::new(nafs_llm::TogetherConfig::new(key)))
+        } else if let Ok(key) = std::env::var("GROQ_API_KEY") {
+            tracing::info!("Using Groq LLM Provider (fast inference)");
+            Arc::new(nafs_llm::GroqProvider::new(nafs_llm::GroqConfig::new(key)))
+        } else if let Ok(key) = std::env::var("FIREWORKS_API_KEY") {
+            tracing::info!("Using Fireworks AI LLM Provider");
+            Arc::new(nafs_llm::FireworksProvider::new(nafs_llm::FireworksConfig::new(key)))
+        } else if let Ok(key) = std::env::var("VOYAGE_API_KEY") {
+            tracing::info!("Using Voyage AI (embedding-only)");
+            Arc::new(nafs_llm::VoyageProvider::new(nafs_llm::VoyageConfig::new(key)))
+        } else if let Ok(key) = std::env::var("JINA_API_KEY") {
+            tracing::info!("Using Jina AI (embedding-only)");
+            Arc::new(nafs_llm::JinaProvider::new(nafs_llm::JinaConfig::new(key)))
+        } else if let Ok(key) = std::env::var("HUGGINGFACE_API_KEY") {
             tracing::info!("Using HuggingFace LLM Provider");
             Arc::new(nafs_llm::HuggingFaceProvider::new(nafs_llm::HuggingFaceConfig::new(key)))
         } else if let Ok(base_url) = std::env::var("OLLAMA_URL") {

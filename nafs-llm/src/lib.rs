@@ -1128,6 +1128,493 @@ impl LLMProvider for OllamaEmbedProvider {
     async fn health_check(&self) -> Result<bool> { Ok(true) }
 }
 
+// ==========================================
+// Together.ai Provider (Open Source Models)
+// ==========================================
+
+#[derive(Clone, Debug)]
+pub struct TogetherConfig {
+    pub api_key: String,
+}
+
+impl TogetherConfig {
+    pub fn new(api_key: impl Into<String>) -> Self {
+        Self { api_key: api_key.into() }
+    }
+}
+
+pub struct TogetherProvider {
+    config: TogetherConfig,
+    client: reqwest::Client,
+}
+
+impl TogetherProvider {
+    pub fn new(config: TogetherConfig) -> Self {
+        Self { config, client: reqwest::Client::new() }
+    }
+}
+
+#[async_trait]
+impl LLMProvider for TogetherProvider {
+    fn name(&self) -> &str { "together" }
+    
+    fn available_models(&self) -> Vec<String> {
+        vec![
+            "meta-llama/Llama-3-70b-chat-hf".to_string(),
+            "meta-llama/Llama-3-8b-chat-hf".to_string(),
+            "mistralai/Mixtral-8x7B-Instruct-v0.1".to_string(),
+            "Qwen/Qwen2-72B-Instruct".to_string(),
+            "deepseek-ai/deepseek-coder-33b-instruct".to_string(),
+        ]
+    }
+
+    fn available_embedding_models(&self) -> Vec<String> {
+        vec![
+            "togethercomputer/m2-bert-80M-8k-retrieval".to_string(),
+            "WhereIsAI/UAE-Large-V1".to_string(),
+            "BAAI/bge-large-en-v1.5".to_string(),
+            "BAAI/bge-base-en-v1.5".to_string(),
+        ]
+    }
+
+    async fn chat(&self, messages: &[ChatMessage], config: &ChatConfig) -> Result<ChatResponse> {
+        let url = "https://api.together.xyz/v1/chat/completions";
+        
+        let msgs: Vec<serde_json::Value> = messages.iter().map(|m| {
+            json!({
+                "role": match m.role {
+                    MessageRole::System => "system",
+                    MessageRole::User => "user",
+                    MessageRole::Assistant => "assistant",
+                },
+                "content": m.content
+            })
+        }).collect();
+
+        let body = json!({
+            "model": config.model,
+            "messages": msgs,
+            "max_tokens": if config.max_tokens > 0 { config.max_tokens } else { 512 },
+            "temperature": config.temperature
+        });
+
+        let resp = self.client.post(url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Together request failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Together error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let content = data["choices"][0]["message"]["content"].as_str().unwrap_or_default().to_string();
+        Ok(ChatResponse { content, finish_reason: FinishReason::Stop, usage: Default::default() })
+    }
+
+    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed_with_model(text, "togethercomputer/m2-bert-80M-8k-retrieval").await
+    }
+
+    async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
+        let url = "https://api.together.xyz/v1/embeddings";
+        
+        let body = json!({
+            "model": model,
+            "input": text
+        });
+
+        let resp = self.client.post(url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Together embed failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Together embed error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let embedding = data["data"][0]["embedding"].as_array()
+            .ok_or_else(|| NafsError::llm("Invalid Together embedding"))?
+            .iter().map(|v| v.as_f64().unwrap_or(0.0) as f32).collect();
+        Ok(embedding)
+    }
+
+    async fn health_check(&self) -> Result<bool> { Ok(true) }
+}
+
+// ==========================================
+// Groq Provider (Fast Inference)
+// ==========================================
+
+#[derive(Clone, Debug)]
+pub struct GroqConfig {
+    pub api_key: String,
+}
+
+impl GroqConfig {
+    pub fn new(api_key: impl Into<String>) -> Self {
+        Self { api_key: api_key.into() }
+    }
+}
+
+pub struct GroqProvider {
+    config: GroqConfig,
+    client: reqwest::Client,
+}
+
+impl GroqProvider {
+    pub fn new(config: GroqConfig) -> Self {
+        Self { config, client: reqwest::Client::new() }
+    }
+}
+
+#[async_trait]
+impl LLMProvider for GroqProvider {
+    fn name(&self) -> &str { "groq" }
+    
+    fn available_models(&self) -> Vec<String> {
+        vec![
+            "llama-3.1-70b-versatile".to_string(),
+            "llama-3.1-8b-instant".to_string(),
+            "llama3-groq-70b-8192-tool-use-preview".to_string(),
+            "mixtral-8x7b-32768".to_string(),
+            "gemma2-9b-it".to_string(),
+        ]
+    }
+
+    fn available_embedding_models(&self) -> Vec<String> {
+        vec![] // Groq doesn't offer embeddings currently
+    }
+
+    async fn chat(&self, messages: &[ChatMessage], config: &ChatConfig) -> Result<ChatResponse> {
+        let url = "https://api.groq.com/openai/v1/chat/completions";
+        
+        let msgs: Vec<serde_json::Value> = messages.iter().map(|m| {
+            json!({
+                "role": match m.role {
+                    MessageRole::System => "system",
+                    MessageRole::User => "user",
+                    MessageRole::Assistant => "assistant",
+                },
+                "content": m.content
+            })
+        }).collect();
+
+        let body = json!({
+            "model": config.model,
+            "messages": msgs,
+            "max_tokens": if config.max_tokens > 0 { config.max_tokens } else { 1024 },
+            "temperature": config.temperature
+        });
+
+        let resp = self.client.post(url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Groq request failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Groq error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let content = data["choices"][0]["message"]["content"].as_str().unwrap_or_default().to_string();
+        Ok(ChatResponse { content, finish_reason: FinishReason::Stop, usage: Default::default() })
+    }
+
+    async fn embed(&self, _text: &str) -> Result<Vec<f32>> {
+        Err(NafsError::llm("Groq does not support embeddings"))
+    }
+
+    async fn health_check(&self) -> Result<bool> { Ok(true) }
+}
+
+// ==========================================
+// Voyage AI Provider (Specialized Embeddings)
+// ==========================================
+
+#[derive(Clone, Debug)]
+pub struct VoyageConfig {
+    pub api_key: String,
+}
+
+impl VoyageConfig {
+    pub fn new(api_key: impl Into<String>) -> Self {
+        Self { api_key: api_key.into() }
+    }
+}
+
+pub struct VoyageProvider {
+    config: VoyageConfig,
+    client: reqwest::Client,
+}
+
+impl VoyageProvider {
+    pub fn new(config: VoyageConfig) -> Self {
+        Self { config, client: reqwest::Client::new() }
+    }
+}
+
+#[async_trait]
+impl LLMProvider for VoyageProvider {
+    fn name(&self) -> &str { "voyage" }
+    
+    fn available_models(&self) -> Vec<String> {
+        vec![] // Voyage is embedding-only
+    }
+
+    fn available_embedding_models(&self) -> Vec<String> {
+        vec![
+            "voyage-3".to_string(),
+            "voyage-3-lite".to_string(),
+            "voyage-code-3".to_string(),
+            "voyage-large-2".to_string(),
+            "voyage-large-2-instruct".to_string(),
+            "voyage-finance-2".to_string(),
+            "voyage-law-2".to_string(),
+        ]
+    }
+
+    async fn chat(&self, _messages: &[ChatMessage], _config: &ChatConfig) -> Result<ChatResponse> {
+        Err(NafsError::llm("Voyage AI is embedding-only"))
+    }
+
+    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed_with_model(text, "voyage-3").await
+    }
+
+    async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
+        let url = "https://api.voyageai.com/v1/embeddings";
+        
+        let body = json!({
+            "model": model,
+            "input": text
+        });
+
+        let resp = self.client.post(url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Voyage embed failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Voyage error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let embedding = data["data"][0]["embedding"].as_array()
+            .ok_or_else(|| NafsError::llm("Invalid Voyage embedding"))?
+            .iter().map(|v| v.as_f64().unwrap_or(0.0) as f32).collect();
+        Ok(embedding)
+    }
+
+    async fn health_check(&self) -> Result<bool> { Ok(true) }
+}
+
+// ==========================================
+// Jina AI Provider (Embeddings & Reranking)
+// ==========================================
+
+#[derive(Clone, Debug)]
+pub struct JinaConfig {
+    pub api_key: String,
+}
+
+impl JinaConfig {
+    pub fn new(api_key: impl Into<String>) -> Self {
+        Self { api_key: api_key.into() }
+    }
+}
+
+pub struct JinaProvider {
+    config: JinaConfig,
+    client: reqwest::Client,
+}
+
+impl JinaProvider {
+    pub fn new(config: JinaConfig) -> Self {
+        Self { config, client: reqwest::Client::new() }
+    }
+}
+
+#[async_trait]
+impl LLMProvider for JinaProvider {
+    fn name(&self) -> &str { "jina" }
+    
+    fn available_models(&self) -> Vec<String> {
+        vec![] // Jina is embedding/reranking focused
+    }
+
+    fn available_embedding_models(&self) -> Vec<String> {
+        vec![
+            "jina-embeddings-v3".to_string(),
+            "jina-embeddings-v2-base-en".to_string(),
+            "jina-embeddings-v2-small-en".to_string(),
+            "jina-colbert-v2".to_string(),
+            "jina-clip-v1".to_string(),
+        ]
+    }
+
+    async fn chat(&self, _messages: &[ChatMessage], _config: &ChatConfig) -> Result<ChatResponse> {
+        Err(NafsError::llm("Jina AI is embedding/reranking only"))
+    }
+
+    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed_with_model(text, "jina-embeddings-v3").await
+    }
+
+    async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
+        let url = "https://api.jina.ai/v1/embeddings";
+        
+        let body = json!({
+            "model": model,
+            "input": [text]
+        });
+
+        let resp = self.client.post(url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Jina embed failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Jina error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let embedding = data["data"][0]["embedding"].as_array()
+            .ok_or_else(|| NafsError::llm("Invalid Jina embedding"))?
+            .iter().map(|v| v.as_f64().unwrap_or(0.0) as f32).collect();
+        Ok(embedding)
+    }
+
+    async fn health_check(&self) -> Result<bool> { Ok(true) }
+}
+
+// ==========================================
+// Fireworks AI Provider
+// ==========================================
+
+#[derive(Clone, Debug)]
+pub struct FireworksConfig {
+    pub api_key: String,
+}
+
+impl FireworksConfig {
+    pub fn new(api_key: impl Into<String>) -> Self {
+        Self { api_key: api_key.into() }
+    }
+}
+
+pub struct FireworksProvider {
+    config: FireworksConfig,
+    client: reqwest::Client,
+}
+
+impl FireworksProvider {
+    pub fn new(config: FireworksConfig) -> Self {
+        Self { config, client: reqwest::Client::new() }
+    }
+}
+
+#[async_trait]
+impl LLMProvider for FireworksProvider {
+    fn name(&self) -> &str { "fireworks" }
+    
+    fn available_models(&self) -> Vec<String> {
+        vec![
+            "accounts/fireworks/models/llama-v3p1-70b-instruct".to_string(),
+            "accounts/fireworks/models/llama-v3p1-8b-instruct".to_string(),
+            "accounts/fireworks/models/mixtral-8x22b-instruct".to_string(),
+            "accounts/fireworks/models/qwen2-72b-instruct".to_string(),
+        ]
+    }
+
+    fn available_embedding_models(&self) -> Vec<String> {
+        vec![
+            "nomic-ai/nomic-embed-text-v1.5".to_string(),
+            "WhereIsAI/UAE-Large-V1".to_string(),
+        ]
+    }
+
+    async fn chat(&self, messages: &[ChatMessage], config: &ChatConfig) -> Result<ChatResponse> {
+        let url = "https://api.fireworks.ai/inference/v1/chat/completions";
+        
+        let msgs: Vec<serde_json::Value> = messages.iter().map(|m| {
+            json!({
+                "role": match m.role {
+                    MessageRole::System => "system",
+                    MessageRole::User => "user",
+                    MessageRole::Assistant => "assistant",
+                },
+                "content": m.content
+            })
+        }).collect();
+
+        let body = json!({
+            "model": config.model,
+            "messages": msgs,
+            "max_tokens": if config.max_tokens > 0 { config.max_tokens } else { 512 },
+            "temperature": config.temperature
+        });
+
+        let resp = self.client.post(url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Fireworks request failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Fireworks error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let content = data["choices"][0]["message"]["content"].as_str().unwrap_or_default().to_string();
+        Ok(ChatResponse { content, finish_reason: FinishReason::Stop, usage: Default::default() })
+    }
+
+    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed_with_model(text, "nomic-ai/nomic-embed-text-v1.5").await
+    }
+
+    async fn embed_with_model(&self, text: &str, model: &str) -> Result<Vec<f32>> {
+        let url = "https://api.fireworks.ai/inference/v1/embeddings";
+        
+        let body = json!({
+            "model": model,
+            "input": text
+        });
+
+        let resp = self.client.post(url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| NafsError::llm(format!("Fireworks embed failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            return Err(NafsError::llm(format!("Fireworks embed error: {}", resp.text().await.unwrap_or_default())));
+        }
+
+        let data: serde_json::Value = resp.json().await.unwrap();
+        let embedding = data["data"][0]["embedding"].as_array()
+            .ok_or_else(|| NafsError::llm("Invalid Fireworks embedding"))?
+            .iter().map(|v| v.as_f64().unwrap_or(0.0) as f32).collect();
+        Ok(embedding)
+    }
+
+    async fn health_check(&self) -> Result<bool> { Ok(true) }
+}
+
 pub struct ProviderChain {
     providers: Vec<Box<dyn LLMProvider>>,
 }
